@@ -25,6 +25,10 @@ class PathResolver:
         Returns:
             解析后的路径
         """
+        # 处理空路径
+        if not link or link in ['.', './']:
+            return ''
+
         # 如果是绝对路径，直接返回
         if link.startswith('/'):
             return normalize_path(link.lstrip('/'))
@@ -32,6 +36,22 @@ class PathResolver:
         # 获取源文件所在目录
         source_dir = os.path.dirname(source_file)
 
+        # 处理 Windows 路径
+        link = link.replace('\\', '/')
+        source_dir = source_dir.replace('\\', '/')
+
         # 解析相对路径
-        resolved = os.path.normpath(os.path.join(source_dir, link))
+        if link.startswith('../'):
+            parts = source_dir.split('/')
+            while link.startswith('../'):
+                if parts:
+                    parts.pop()
+                link = link[3:]
+            if parts:
+                resolved = '/'.join(parts + [link])
+            else:
+                resolved = link
+        else:
+            resolved = os.path.normpath(os.path.join(source_dir, link))
+
         return normalize_path(resolved)

@@ -37,22 +37,42 @@ class ReferenceParser:
         references: Set[Tuple[str, bool]] = set()
 
         # 解析图片引用
-        for pattern in [self.image_pattern, self.image_wiki_pattern]:
-            for match in pattern.finditer(content):
-                link = match.group(1) if pattern == self.image_wiki_pattern else match.group(2)
-                link = normalize_link(link)
-                if link and not is_url(link):
-                    references.add((link, True))
+        for match in self.image_pattern.finditer(content):
+            link = match.group(2).strip()
+            link = normalize_link(link)
+            if link and not is_url(link):
+                references.add((link, True))
 
-        # 解析链接引用
-        for pattern in [self.link_pattern, self.wiki_pattern]:
-            for match in pattern.finditer(content):
-                link = match.group(1) if pattern == self.wiki_pattern else match.group(2)
-                link = normalize_link(link)
-                if link and not is_url(link) and not link.startswith('#'):
-                    references.add((link, False))
+        # 解析图片 Wiki 引用
+        for match in self.image_wiki_pattern.finditer(content):
+            link = match.group(1).strip()
+            link = normalize_link(link)
+            if link and not is_url(link):
+                references.add((link, True))
 
-        return sorted(references)
+        # 解析 Markdown 链接
+        for match in self.link_pattern.finditer(content):
+            link = match.group(2).strip()
+            link = normalize_link(link)
+            if link and not is_url(link) and not link.startswith('#'):
+                references.add((link, False))
+
+        # 解析 Wiki 链接
+        for match in self.wiki_pattern.finditer(content):
+            link = match.group(1).strip()
+            link = normalize_link(link)
+            if link and not is_url(link) and not link.startswith('#'):
+                references.add((link, False))
+
+        # 过滤重复引用
+        filtered_refs = []
+        seen = set()
+        for ref, is_image in sorted(references):
+            if (ref, is_image) not in seen:
+                filtered_refs.append((ref, is_image))
+                seen.add((ref, is_image))
+
+        return filtered_refs
 
     def _remove_code_blocks(self, content: str) -> str:
         """移除代码块

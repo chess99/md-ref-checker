@@ -18,17 +18,32 @@ def normalize_path(path: str) -> str:
     """
     if not path:
         return ''
+
     # 统一使用正斜杠
     path = path.replace('\\', '/')
+
     # 移除开头的 ./
     if path.startswith('./'):
         path = path[2:]
+
     # 规范化多个斜杠
     path = re.sub(r'/+', '/', path)
+
     # 移除末尾的斜杠
     if path.endswith('/') and len(path) > 1:
         path = path[:-1]
-    return path
+
+    # 处理 ../ 和 ./
+    parts = []
+    for part in path.split('/'):
+        if part in ('', '.'):
+            continue
+        if part == '..' and parts and parts[-1] != '..':
+            parts.pop()
+        else:
+            parts.append(part)
+
+    return '/'.join(parts)
 
 def is_markdown_file(file_path: str) -> bool:
     """检查是否为 Markdown 文件
@@ -114,7 +129,7 @@ def normalize_link(link: str) -> str:
     if not link:
         return ''
     # 移除链接中的锚点和查询参数
-    link = link.split('#')[0].split('?')[0]
+    link = link.split('#')[0].split('?')[0].strip()
     # 移除末尾的斜杠
     link = link.rstrip('/')
     return normalize_path(link)
@@ -131,6 +146,16 @@ def is_url(link: str) -> bool:
     if not link:
         return False
     try:
+        # 处理 Windows 路径
+        if '\\' in link:
+            return False
+        # 处理相对路径
+        if link.startswith('./') or link.startswith('../'):
+            return False
+        # 处理绝对路径
+        if link.startswith('/'):
+            return False
+        # 处理 URL
         result = urlparse(link)
         return bool(result.scheme and result.netloc)
     except ValueError:

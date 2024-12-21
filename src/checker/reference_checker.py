@@ -4,14 +4,14 @@ Main reference checker class for Markdown reference checker
 
 import os
 import sys
-from typing import Set, Optional
+from typing import Set, Optional, TextIO
 from .models import Reference, ReferenceStats, Config, FileAccessError, ParseError
 from .ignore_rules import IgnoreRules
 from .file_scanner import FileScanner
 from .path_resolver import PathResolver
 from .reference_parser import ReferenceParser
 from .report import ReportGenerator
-from .utils import normalize_path
+from .utils import normalize_path, is_image_file
 
 class ReferenceChecker:
     """引用检查器"""
@@ -46,7 +46,10 @@ class ReferenceChecker:
 
             # 检查每个 Markdown 文件中的引用
             for file in self.file_scanner.markdown_files:
-                self._check_file_references(file)
+                try:
+                    self._check_file_references(file)
+                except (FileAccessError, ParseError) as e:
+                    print(f"Error processing file {file}: {str(e)}", file=sys.stderr)
 
             return self.stats
         except Exception as e:
@@ -84,7 +87,7 @@ class ReferenceChecker:
                 resolved_path=resolved
             )
             
-            if is_image:
+            if is_image or is_image_file(ref_target):
                 self._check_image_reference(ref)
             else:
                 self._check_markdown_reference(ref)
@@ -99,6 +102,7 @@ class ReferenceChecker:
         img_path = os.path.join(self.config.root_dir, ref.resolved_path)
         if os.path.exists(img_path):
             self.stats.referenced_images.add(ref.resolved_path)
+            ref.is_valid = True
             return
 
         # 检查 assets 目录
@@ -106,15 +110,17 @@ class ReferenceChecker:
         if assets_path:
             self.stats.referenced_images.add(assets_path)
             ref.resolved_path = assets_path
+            ref.is_valid = True
             return
 
         # 检查搜索路径
         for search_path in self.config.search_paths:
-            full_path = os.path.join(self.config.root_dir, search_path, ref.resolved_path)
+            full_path = os.path.join(self.config.root_dir, search_path, os.path.basename(ref.resolved_path))
             if os.path.exists(full_path):
-                resolved = normalize_path(os.path.join(search_path, ref.resolved_path))
+                resolved = normalize_path(os.path.join(search_path, os.path.basename(ref.resolved_path)))
                 self.stats.referenced_images.add(resolved)
                 ref.resolved_path = resolved
+                ref.is_valid = True
                 return
 
         # 如果都不存在，标记为无效引用
@@ -138,6 +144,7 @@ class ReferenceChecker:
         if os.path.exists(os.path.join(self.config.root_dir, resolved_path)):
             self.stats.outgoing[ref.source].add(resolved_path)
             self.stats.incoming[resolved_path].add(ref.source)
+            ref.is_valid = True
         else:
             ref.is_valid = False
             self.stats.invalid_references.append(ref)
@@ -157,7 +164,7 @@ class ReferenceChecker:
             return assets_path
         return None
 
-    def print_report(self, output=sys.stdout) -> None:
+    def print_report(self, output: TextIO = sys.stdout) -> None:
         """打印报告
 
         Args:

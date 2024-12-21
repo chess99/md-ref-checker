@@ -5,6 +5,7 @@ Ignore rules for excluding files from scanning
 import os
 import fnmatch
 from typing import List, Set
+from .utils import normalize_path
 
 class IgnoreRules:
     """忽略规则"""
@@ -39,6 +40,15 @@ class IgnoreRules:
                 for line in f:
                     line = line.strip()
                     if line and not line.startswith('#'):
+                        # 处理目录模式
+                        if line.endswith('/'):
+                            line = line + '*'
+                        # 处理通配符
+                        if not any(c in line for c in '*?['):
+                            if os.path.isdir(os.path.join(self.root_dir, line)):
+                                line = line.rstrip('/') + '/*'
+                            else:
+                                line = line + '*'
                         self.ignore_patterns.add(line)
 
     def should_ignore(self, file_path: str) -> bool:
@@ -50,8 +60,18 @@ class IgnoreRules:
         Returns:
             是否应该被忽略
         """
+        # 规范化路径
+        file_path = normalize_path(file_path)
+        
         # 检查每个忽略模式
         for pattern in self.ignore_patterns:
+            pattern = normalize_path(pattern)
+            # 处理目录匹配
+            if pattern.endswith('/*'):
+                dir_pattern = pattern[:-2]
+                if file_path.startswith(dir_pattern):
+                    return True
+            # 处理文件匹配
             if fnmatch.fnmatch(file_path, pattern):
                 return True
         return False
