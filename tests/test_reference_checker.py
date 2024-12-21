@@ -1,7 +1,7 @@
 import unittest
 import os
 import shutil
-from check_references import ReferenceChecker
+from src.check_references import ReferenceChecker
 
 class TestReferenceChecker(unittest.TestCase):
     def setUp(self):

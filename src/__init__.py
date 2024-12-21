@@ -1,11 +1,8 @@
 """
-Markdown Reference Checker
-
-一个用于检查 Markdown 文件中引用完整性的工具。
+md-ref-checker - A tool for checking references in Markdown files
 """
 
-from .checker import ReferenceChecker
-from .cli import main
+from .check_references import ReferenceChecker
 
-__version__ = '0.1.0'
-__all__ = ['ReferenceChecker', 'main'] 
+__version__ = "0.1.0"
+__all__ = ["ReferenceChecker"] 

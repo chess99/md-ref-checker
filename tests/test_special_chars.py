@@ -1,6 +1,6 @@
 import unittest
 import os
-from check_references import ReferenceChecker
+from src.check_references import ReferenceChecker
 
 class TestSpecialChars(unittest.TestCase):
     def setUp(self):
@@ -38,7 +38,7 @@ class TestSpecialChars(unittest.TestCase):
             "应该正确识别包含井号的文件名"
         )
         
-        # 测试对包含井号的文件的引用解析
+        # 测试��包含井号的文件的引用解析
         resolved = self.checker.resolve_link(
             'special#chars',
             'doc&with&ampersands.md',
@@ -158,7 +158,7 @@ class TestSpecialChars(unittest.TestCase):
         self.assertEqual(
             resolved,
             '测试文件.md',
-            "应该正确解析包含Unicode字符的文件引用"
+            "应该正确解析包含Unicode字符��文件引用"
         )
         
         # 清理测试文件

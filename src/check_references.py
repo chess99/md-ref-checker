@@ -120,6 +120,10 @@ class ReferenceChecker:
         # 规范化路径（使用正斜杠）
         path = path.replace('\\', '/')
         
+        # 移除开头的 ./
+        if path.startswith('./'):
+            path = path[2:]
+        
         for pattern in self.ignore_patterns:
             # 移除开头的 ./
             if pattern.startswith('./'):
@@ -129,19 +133,35 @@ class ReferenceChecker:
             if pattern.endswith('/'):
                 pattern = pattern[:-1]
             
-            # 处理目录模式（不论是否以/结尾都视为目录模式）
-            if os.path.isdir(os.path.join(self.root_dir, pattern)):
-                if path == pattern or path.startswith(pattern + '/'):
+            # 处理目录通配符模式（以 / 结尾）
+            if pattern.endswith('/*'):
+                dir_pattern = pattern[:-1]  # 移除 *
+                if path.startswith(dir_pattern):
                     return True
             
             # 处理文件通配符
             elif '*' in pattern:
                 import fnmatch
-                if fnmatch.fnmatch(path, pattern):
+                # 处理 **/ 模式（匹配任意深度的目录）
+                if '**/' in pattern:
+                    pattern = pattern.replace('**/', '')
+                    if fnmatch.fnmatch(os.path.basename(path), pattern):
+                        return True
+                # 普通通配符匹配
+                elif fnmatch.fnmatch(path, pattern):
+                    return True
+            
+            # 处理目录模式（不论是否以/结尾都视为目录模式）
+            elif os.path.isdir(os.path.join(self.root_dir, pattern)):
+                if path == pattern or path.startswith(pattern + '/'):
                     return True
             
             # 精确匹配
             elif path == pattern:
+                return True
+            
+            # 处理前缀匹配（如 draft_ 开头的文件）
+            elif pattern.endswith('_*') and os.path.basename(path).startswith(pattern[:-1]):
                 return True
         
         return False
@@ -235,14 +255,27 @@ class ReferenceChecker:
         base_name = os.path.basename(link)
         base_name_no_ext = os.path.splitext(base_name)[0]
         
+        # 如果是图片引用，优先在assets目录下查找
+        if is_image:
+            # 如果已经在assets目录下，直接返回
+            if link.startswith('assets/'):
+                return link
+            
+            # 尝试在assets目录下查找
+            assets_path = f"assets/{base_name}"
+            if assets_path in self.image_files:
+                return assets_path
+            
+            # 如果在其他位置找到了图片文件，也返回
+            if link in self.image_files:
+                return link
+        
         # 检查所有可能的映射
         possible_keys = [
             link,  # 完整路径
             base_link,  # 不带扩展名的完整路径
             base_name,  # 文件名（带扩展名）
             base_name_no_ext,  # 文件名（不带扩展名）
-            f"assets/{base_name}",  # assets/文件名（带扩展名）
-            f"assets/{base_name_no_ext}",  # assets/文件名（不带扩展名）
         ]
         
         # 对于每个可能的键，检查是否存在映射
@@ -252,38 +285,26 @@ class ReferenceChecker:
                 # 如果是图片引用，优先查找图片文件
                 if is_image:
                     # 先尝试查找图片文件
-                    image_files = []
-                    for f in files:
-                        if f in self.image_files:
-                            self.referenced_images.add(f)
-                            image_files.append(f)
+                    image_files = [f for f in files if f in self.image_files]
                     if image_files:
+                        self.referenced_images.add(image_files[0])
                         return image_files[0]
-                    # 如果找不到图片文件，尝试查找其他文件
-                    # 优先返回.md文件
-                    md_files = [f for f in files if f.endswith('.md')]
-                    if md_files:
-                        return md_files[0]
-                    # 如果还是找不到，返回第一个匹配的文件
-                    return files[0]
                 else:
                     # 如果不是图片引用，优先返回.md文件
                     md_files = [f for f in files if f.endswith('.md')]
                     if md_files:
                         return md_files[0]
-                    # 否则返回第一个匹配的文件
-                    resolved = files[0]
-                    # 如果是图片文件，记录引用
-                    if resolved in self.image_files:
-                        self.referenced_images.add(resolved)
-                    return resolved
+                    # 如果找不到.md文件，返回第一个匹配的文件
+                    if files:
+                        return files[0]
         
-        # 尝试直接在assets目录下查找图片文件
-        if is_image:
-            assets_path = f"assets/{base_name}"
-            if assets_path in self.image_files:
-                self.referenced_images.add(assets_path)
-                return assets_path
+        # 如果都找不到，尝试添加.md扩展名（对于非图片引用）
+        if not is_image and not link.endswith('.md'):
+            return f"{link}.md"
+        
+        # 如果是图片引用但找不到文件，尝试添加assets/前缀
+        if is_image and not link.startswith('assets/'):
+            return f"assets/{link}"
         
         # 如果都找不到，返回原始链接
         return link
@@ -539,7 +560,7 @@ def main():
     args = parser.parse_args()
 
     checker = ReferenceChecker(args.dir)
-    # 添加令行指定的忽略模式
+    # 添加令行指定忽略模式
     if args.ignore:
         checker.ignore_patterns.extend(args.ignore)
     checker.check_all_references()

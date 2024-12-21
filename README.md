@@ -1,52 +1,81 @@
-# Markdown Reference Checker
+# md-ref-checker
 
-一个用于检查 Markdown 文件中引用完整性的命令行工具。
+A powerful tool for checking references in Markdown files, especially designed for Obsidian-style wiki links.
 
-## 功能特点
+## Features
 
-- 检查文档引用 (`[[文件名]]` 或 `[[文件名|显示文本]]`)
-- 检查图片引用 (`![[图片文件名]]`)
-- 检查网络图片引用 (`![图片说明](https://图片地址)`)
-- 检测单向引用（A引用了B，但B没有引用A）
-- 生成引用统计信息
-- 支持代码块中引用的智能识别（忽略代码示例中的引用）
-- 支持自定义忽略规则
+- Check markdown references:
+  - Document references `[[filename]]` or `[[filename|display text]]`
+  - Image references `![[image_filename]]`
+  - Web image references `![alt text](https://image_url)`
+  - Check unidirectional links: A references B, but B doesn't reference A
+  - Generate reference statistics
 
-## 安装
+- File organization checks:
+  - Support for pinyin index + Chinese name in root directory
+  - Direct Chinese names for subdirectories and files
+  - Images stored in the `assets/` folder
+
+- Image specification checks:
+  - Detect unreferenced image files
+  - Support common image formats: PNG, JPG, etc.
+  - Check image reference integrity
+
+## Installation
 
 ```bash
 pip install md-ref-checker
 ```
 
-## 使用方法
+## Usage
+
+Basic usage:
 
 ```bash
-md-ref-checker [--dir 目录路径] [-v 详细程度] [--no-color] [--ignore 忽略模式]
+md-ref-checker --dir /path/to/markdown/files
 ```
 
-### 参数说明
+Options:
 
-- `--dir`: 要检查的目录路径，默认为当前目录
-- `-v`: 输出详细程度（0-2），默认为0
-  - 0: 只显示无效引用和未使用的图片
-  - 1: 显示无效引用、未使用的图片和单向链接
-  - 2: 显示所有引用统计信息
-- `--no-color`: 禁用彩色输出
-- `--ignore`: 添加要忽略的文件模式（可多次使用）
+- `--dir`: Directory path to check (default: current directory)
+- `-v, --verbosity`: Output verbosity (0-2)
+  - 0: Show only invalid references and unused images
+  - 1: Show invalid references, unused images, and unidirectional links
+  - 2: Show all reference statistics
+- `--no-color`: Disable colored output
+- `--ignore`: Add file patterns to ignore (can be used multiple times)
 
-## 示例
+Example:
 
 ```bash
-# 检查当前目录
-md-ref-checker
-
-# 检查指定目录，���示详细信息
-md-ref-checker --dir ./docs -v 2
-
-# 忽略特定文件
-md-ref-checker --ignore "*.draft.md" --ignore "temp/*"
+md-ref-checker --dir ./docs -v 2 --ignore "*.tmp" --ignore "drafts/*"
 ```
 
-## 开发说明
+## Features
 
-请查看 [DEVELOPMENT.md](docs/DEVELOPMENT.md) 了解开发相关信息。 
+- Support for relative and absolute paths
+- Ignore references in code blocks
+- Ignore references in inline code
+- Correctly handle task lists and other Markdown syntax
+- Support for `.gitignore` and custom ignore rules
+- Detailed error location reporting (line number, column)
+
+## Development
+
+To set up the development environment:
+
+```bash
+git clone https://github.com/yourusername/md-ref-checker.git
+cd md-ref-checker
+pip install -e ".[dev]"
+```
+
+Run tests:
+
+```bash
+pytest
+```
+
+## License
+
+This project is licensed under the MIT License - see the [LICENSE](LICENSE) file for details. 

@@ -1,6 +1,6 @@
 import unittest
 import os
-from check_references import ReferenceChecker
+from src.check_references import ReferenceChecker
 
 class TestCodeBlocks(unittest.TestCase):
     def setUp(self):
