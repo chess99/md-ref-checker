@@ -65,4 +65,4 @@ def test_get_directory_name():
     
     # Test special cases
     assert get_directory_name('/path/to/file') == '/path/to'
-    assert get_directory_name('C:/path/to/file') == 'C:/path/to' 
+    assert get_directory_name('C:/path/to/file') == 'C:/path/to'

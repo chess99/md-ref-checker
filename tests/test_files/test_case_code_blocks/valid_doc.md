@@ -1,3 +1,3 @@
-# 有效文档
+# Valid Document
 
-这是一个有效的文档，用于测试正常引用。 
+This is a valid document that can be referenced by other documents. 

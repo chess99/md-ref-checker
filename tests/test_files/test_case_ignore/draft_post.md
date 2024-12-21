@@ -1,3 +1,3 @@
 # Draft Post
 
-This file should be ignored based on the mdignore pattern. 
+This document should be ignored based on .mdignore draft_* pattern. 

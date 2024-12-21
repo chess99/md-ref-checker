@@ -1,17 +1,9 @@
 import os
 from src.check_references import ReferenceChecker
 
-def test_filenames_with_spaces(clean_test_files):
+def test_filenames_with_spaces(test_files_root):
     """测试包含空格的文件名"""
-    test_dir = os.path.join(clean_test_files, 'test_case_special_chars')
-    os.makedirs(test_dir, exist_ok=True)
-    os.makedirs(os.path.join(test_dir, 'with spaces'), exist_ok=True)
-    
-    # 创建测试文件
-    with open(os.path.join(test_dir, 'with spaces/doc with spaces.md'), 'w', encoding='utf-8') as f:
-        f.write('# Document with spaces')
-    with open(os.path.join(test_dir, 'special#chars.md'), 'w', encoding='utf-8') as f:
-        f.write('# Document with hash')
+    test_dir = os.path.join(test_files_root, 'test_case_special_chars')
     
     checker = ReferenceChecker(test_dir)
     checker.scan_files()
@@ -28,16 +20,9 @@ def test_filenames_with_spaces(clean_test_files):
     assert resolved == 'with spaces/doc with spaces.md', \
         "应该正确解析包含空格的文件引用"
 
-def test_filenames_with_hash(clean_test_files):
+def test_filenames_with_hash(test_files_root):
     """测试包含井号的文件名"""
-    test_dir = os.path.join(clean_test_files, 'test_case_special_chars')
-    os.makedirs(test_dir, exist_ok=True)
-    
-    # 创建测试文件
-    with open(os.path.join(test_dir, 'special#chars.md'), 'w', encoding='utf-8') as f:
-        f.write('# Document with hash')
-    with open(os.path.join(test_dir, 'doc&with&ampersands.md'), 'w', encoding='utf-8') as f:
-        f.write('# Document with ampersands')
+    test_dir = os.path.join(test_files_root, 'test_case_special_chars')
     
     checker = ReferenceChecker(test_dir)
     checker.scan_files()
@@ -54,14 +39,9 @@ def test_filenames_with_hash(clean_test_files):
     assert resolved == 'special#chars.md', \
         "应该正确解析包含井号的文件引用"
 
-def test_filenames_with_ampersands(clean_test_files):
+def test_filenames_with_ampersands(test_files_root):
     """测试包含&符号的文件名"""
-    test_dir = os.path.join(clean_test_files, 'test_case_special_chars')
-    os.makedirs(test_dir, exist_ok=True)
-    
-    # 创建测试文件
-    with open(os.path.join(test_dir, 'doc&with&ampersands.md'), 'w', encoding='utf-8') as f:
-        f.write('# Document with ampersands')
+    test_dir = os.path.join(test_files_root, 'test_case_special_chars')
     
     checker = ReferenceChecker(test_dir)
     checker.scan_files()
@@ -69,22 +49,9 @@ def test_filenames_with_ampersands(clean_test_files):
     assert 'doc&with&ampersands.md' in checker.files, \
         "应该正确识别包含&符号的文件名"
 
-def test_relative_paths(clean_test_files):
+def test_relative_paths(test_files_root):
     """测试相对路径引用"""
-    test_dir = os.path.join(clean_test_files, 'test_case_special_chars')
-    os.makedirs(test_dir, exist_ok=True)
-    os.makedirs(os.path.join(test_dir, 'with spaces'), exist_ok=True)
-    os.makedirs(os.path.join(test_dir, 'with spaces/and#hash'), exist_ok=True)
-    
-    # 创建测试文件
-    with open(os.path.join(test_dir, 'with spaces/doc with spaces.md'), 'w', encoding='utf-8') as f:
-        f.write('# Document with spaces')
-    with open(os.path.join(test_dir, 'with spaces/doc with spaces 2.md'), 'w', encoding='utf-8') as f:
-        f.write('# Document with spaces 2')
-    with open(os.path.join(test_dir, 'with spaces/and#hash/doc#with#hash.md'), 'w', encoding='utf-8') as f:
-        f.write('# Document with hash')
-    with open(os.path.join(test_dir, 'special#chars.md'), 'w', encoding='utf-8') as f:
-        f.write('# Document with hash')
+    test_dir = os.path.join(test_files_root, 'test_case_special_chars')
     
     checker = ReferenceChecker(test_dir)
     checker.scan_files()
@@ -107,21 +74,9 @@ def test_relative_paths(clean_test_files):
     assert resolved == 'special#chars.md', \
         "应该正确解析父级目录的引用"
 
-def test_image_references(clean_test_files):
+def test_image_references(test_files_root):
     """测试特殊字符的图片引用"""
-    test_dir = os.path.join(clean_test_files, 'test_case_special_chars')
-    os.makedirs(test_dir, exist_ok=True)
-    os.makedirs(os.path.join(test_dir, 'assets'), exist_ok=True)
-    
-    # 创建测试文件
-    with open(os.path.join(test_dir, 'special#chars.md'), 'w', encoding='utf-8') as f:
-        f.write('# Document with hash')
-    with open(os.path.join(test_dir, 'with spaces/doc with spaces 2.md'), 'w', encoding='utf-8') as f:
-        f.write('# Document with spaces 2')
-    with open(os.path.join(test_dir, 'assets/image with spaces.png'), 'w', encoding='utf-8') as f:
-        f.write('dummy image content')
-    with open(os.path.join(test_dir, 'assets/image#with#hash.png'), 'w', encoding='utf-8') as f:
-        f.write('dummy image content')
+    test_dir = os.path.join(test_files_root, 'test_case_special_chars')
     
     checker = ReferenceChecker(test_dir)
     checker.scan_files()

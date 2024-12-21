@@ -30,7 +30,7 @@ def clean_test_files(request, test_files_root):
 
 @pytest.fixture
 def temp_dir(test_files_root):
-    """Create a temporary directory for tests"""
+    """Create a temporary directory for tests that need it"""
     temp_path = os.path.join(test_files_root, 'temp')
     os.makedirs(temp_path, exist_ok=True)
     return temp_path 

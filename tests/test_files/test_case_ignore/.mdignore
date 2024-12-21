@@ -1,5 +1,5 @@
 # Custom ignore patterns for markdown files
 draft_*
-_private/
+_private/*
 *.draft.md
 _temp/ 

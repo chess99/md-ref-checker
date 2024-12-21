@@ -5,10 +5,9 @@ Tests for ignore rules functionality
 import os
 from src.checker.ignore_rules import IgnoreRules
 
-def test_default_patterns(clean_test_files):
+def test_default_patterns(test_files_root):
     """Test default ignore patterns"""
-    test_dir = os.path.join(clean_test_files, 'test_case_ignore')
-    os.makedirs(test_dir, exist_ok=True)
+    test_dir = os.path.join(test_files_root, 'test_case_ignore')
     
     # Initialize ignore rules
     ignore_rules = IgnoreRules(test_dir)
@@ -27,30 +26,9 @@ def test_default_patterns(clean_test_files):
         assert ignore_rules.should_ignore(path), \
             f"Should ignore {path}"
 
-def test_gitignore_patterns(clean_test_files):
+def test_gitignore_patterns(test_files_root):
     """Test .gitignore patterns"""
-    test_dir = os.path.join(clean_test_files, 'test_case_ignore')
-    os.makedirs(test_dir, exist_ok=True)
-    
-    # Create .gitignore
-    with open(os.path.join(test_dir, '.gitignore'), 'w', encoding='utf-8') as f:
-        f.write('''ignored_dir/*
-*.tmp
-temp.*
-node_modules/''')
-    
-    # Create test files
-    os.makedirs(os.path.join(test_dir, 'ignored_dir'))
-    os.makedirs(os.path.join(test_dir, 'normal_dir'))
-    
-    with open(os.path.join(test_dir, 'ignored_dir/file.txt'), 'w') as f:
-        f.write('content')
-    with open(os.path.join(test_dir, 'normal_dir/file.txt'), 'w') as f:
-        f.write('content')
-    with open(os.path.join(test_dir, 'file.tmp'), 'w') as f:
-        f.write('content')
-    with open(os.path.join(test_dir, 'temp.txt'), 'w') as f:
-        f.write('content')
+    test_dir = os.path.join(test_files_root, 'test_case_ignore')
     
     # Initialize ignore rules
     ignore_rules = IgnoreRules(test_dir)
@@ -69,28 +47,9 @@ node_modules/''')
     assert not ignore_rules.should_ignore('normal_dir/file.txt'), \
         "Should not ignore files in normal directories"
 
-def test_mdignore_patterns(clean_test_files):
+def test_mdignore_patterns(test_files_root):
     """Test .mdignore patterns"""
-    test_dir = os.path.join(clean_test_files, 'test_case_ignore')
-    os.makedirs(test_dir, exist_ok=True)
-    
-    # Create .mdignore
-    with open(os.path.join(test_dir, '.mdignore'), 'w', encoding='utf-8') as f:
-        f.write('''draft_*
-_private/*
-*.draft.md''')
-    
-    # Create test files
-    os.makedirs(os.path.join(test_dir, '_private'))
-    
-    with open(os.path.join(test_dir, 'draft_post.md'), 'w') as f:
-        f.write('content')
-    with open(os.path.join(test_dir, '_private/secret.md'), 'w') as f:
-        f.write('content')
-    with open(os.path.join(test_dir, 'post.draft.md'), 'w') as f:
-        f.write('content')
-    with open(os.path.join(test_dir, 'normal_post.md'), 'w') as f:
-        f.write('content')
+    test_dir = os.path.join(test_files_root, 'test_case_ignore')
     
     # Initialize ignore rules
     ignore_rules = IgnoreRules(test_dir)
@@ -107,16 +66,9 @@ _private/*
     assert not ignore_rules.should_ignore('normal_post.md'), \
         "Should not ignore normal files"
 
-def test_multiple_ignore_files(clean_test_files):
+def test_multiple_ignore_files(test_files_root):
     """Test multiple ignore files"""
-    test_dir = os.path.join(clean_test_files, 'test_case_ignore')
-    os.makedirs(test_dir, exist_ok=True)
-    
-    # Create .gitignore and .mdignore
-    with open(os.path.join(test_dir, '.gitignore'), 'w', encoding='utf-8') as f:
-        f.write('*.tmp\ntemp.*')
-    with open(os.path.join(test_dir, '.mdignore'), 'w', encoding='utf-8') as f:
-        f.write('draft_*\n*.draft.md')
+    test_dir = os.path.join(test_files_root, 'test_case_ignore')
     
     # Initialize ignore rules
     ignore_rules = IgnoreRules(test_dir)
@@ -135,19 +87,9 @@ def test_multiple_ignore_files(clean_test_files):
     assert not ignore_rules.should_ignore('normal.md'), \
         "Should not ignore normal files"
 
-def test_nested_ignore_files(clean_test_files):
+def test_nested_ignore_files(test_files_root):
     """Test nested ignore files"""
-    test_dir = os.path.join(clean_test_files, 'test_case_ignore')
-    os.makedirs(test_dir, exist_ok=True)
-    
-    # Create directory structure with nested ignore files
-    os.makedirs(os.path.join(test_dir, 'docs'))
-    os.makedirs(os.path.join(test_dir, 'docs/drafts'))
-    
-    with open(os.path.join(test_dir, '.gitignore'), 'w', encoding='utf-8') as f:
-        f.write('*.tmp')
-    with open(os.path.join(test_dir, 'docs/.gitignore'), 'w', encoding='utf-8') as f:
-        f.write('drafts/*')
+    test_dir = os.path.join(test_files_root, 'test_case_ignore')
     
     # Initialize ignore rules
     ignore_rules = IgnoreRules(test_dir)

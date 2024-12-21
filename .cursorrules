@@ -27,6 +27,7 @@
 - Place all tests in ./tests directory
 - Add __init__.py to new directories
 - Include type annotations and docstrings in tests
+- All test cases should use pre-created files in tests/test_files directory
 - Import test fixtures when TYPE_CHECKING:
 
   ```python

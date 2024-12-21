@@ -1,45 +1,9 @@
 import os
 from src.check_references import ReferenceChecker
 
-def test_reference_counting(clean_test_files):
+def test_reference_counting(test_files_root):
     """Test reference counting functionality"""
-    test_dir = os.path.join(clean_test_files, 'test_case_statistics')
-    os.makedirs(test_dir, exist_ok=True)
-    os.makedirs(os.path.join(test_dir, 'assets'), exist_ok=True)
-    
-    # Create test files
-    with open(os.path.join(test_dir, 'index.md'), 'w', encoding='utf-8') as f:
-        f.write('''# Index
-        
-[[doc1]]
-[[doc2]]
-[[doc3]]
-![[image1.png]]
-![[image2.png]]''')
-    
-    with open(os.path.join(test_dir, 'doc1.md'), 'w', encoding='utf-8') as f:
-        f.write('''# Document 1
-        
-[[index]]
-[[doc2]]
-![[image1.png]]''')
-    
-    with open(os.path.join(test_dir, 'doc2.md'), 'w', encoding='utf-8') as f:
-        f.write('''# Document 2
-        
-[[doc1]]
-[[doc3]]''')
-    
-    with open(os.path.join(test_dir, 'doc3.md'), 'w', encoding='utf-8') as f:
-        f.write('''# Document 3
-        
-[[index]]
-![[image2.png]]''')
-    
-    # Create image files
-    for img in ['image1.png', 'image2.png', 'unused.png']:
-        with open(os.path.join(test_dir, 'assets', img), 'w') as f:
-            f.write(f'dummy content for {img}')
+    test_dir = os.path.join(test_files_root, 'test_case_statistics')
     
     checker = ReferenceChecker(test_dir)
     checker.scan_files()
@@ -68,28 +32,9 @@ def test_reference_counting(clean_test_files):
     assert len(stats['doc3.md']['incoming']) == 2, \
         "Doc3 should have 2 incoming references"
 
-def test_image_references(clean_test_files):
+def test_image_references(test_files_root):
     """Test image reference tracking"""
-    test_dir = os.path.join(clean_test_files, 'test_case_statistics')
-    os.makedirs(test_dir, exist_ok=True)
-    os.makedirs(os.path.join(test_dir, 'assets'), exist_ok=True)
-    
-    # Create test files
-    with open(os.path.join(test_dir, 'index.md'), 'w', encoding='utf-8') as f:
-        f.write('''# Index
-        
-![[image1.png]]
-![[image2.png]]''')
-    
-    with open(os.path.join(test_dir, 'doc1.md'), 'w', encoding='utf-8') as f:
-        f.write('''# Document 1
-        
-![[image1.png]]''')
-    
-    # Create image files
-    for img in ['image1.png', 'image2.png', 'unused.png']:
-        with open(os.path.join(test_dir, 'assets', img), 'w') as f:
-            f.write(f'dummy content for {img}')
+    test_dir = os.path.join(test_files_root, 'test_case_statistics')
     
     checker = ReferenceChecker(test_dir)
     checker.scan_files()
@@ -116,26 +61,9 @@ def test_image_references(clean_test_files):
         assert actual_count == count, \
             f"{image} should have {count} references, but found {actual_count}"
 
-def test_circular_references(clean_test_files):
+def test_circular_references(test_files_root):
     """Test circular reference detection"""
-    test_dir = os.path.join(clean_test_files, 'test_case_statistics')
-    os.makedirs(test_dir, exist_ok=True)
-    
-    # Create files with circular references
-    with open(os.path.join(test_dir, 'a.md'), 'w', encoding='utf-8') as f:
-        f.write('''# Document A
-        
-[[b]]''')
-    
-    with open(os.path.join(test_dir, 'b.md'), 'w', encoding='utf-8') as f:
-        f.write('''# Document B
-        
-[[c]]''')
-    
-    with open(os.path.join(test_dir, 'c.md'), 'w', encoding='utf-8') as f:
-        f.write('''# Document C
-        
-[[a]]''')
+    test_dir = os.path.join(test_files_root, 'test_case_statistics')
     
     checker = ReferenceChecker(test_dir)
     checker.scan_files()

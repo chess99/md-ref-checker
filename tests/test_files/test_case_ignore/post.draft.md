@@ -1,3 +1,3 @@
-# Draft Post
+# Draft Document
 
-This file should be ignored based on the *.draft.md pattern. 
+This document should be ignored based on .mdignore *.draft.md pattern. 

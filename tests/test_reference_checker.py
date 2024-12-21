@@ -1,17 +1,9 @@
 import os
 from src.check_references import ReferenceChecker
 
-def test_image_reference_resolution(clean_test_files):
+def test_image_reference_resolution(test_files_root):
     """测试图片引用解析"""
-    test_dir = os.path.join(clean_test_files, 'test_case_1')
-    os.makedirs(test_dir, exist_ok=True)
-    os.makedirs(os.path.join(test_dir, 'assets'), exist_ok=True)
-    
-    # 创建测试文件
-    with open(os.path.join(test_dir, 'test.md'), 'w', encoding='utf-8') as f:
-        f.write('# Test\n![[20241025-地址组件长期规划.png]]')
-    with open(os.path.join(test_dir, 'assets/20241025-地址组件长期规划.png'), 'w', encoding='utf-8') as f:
-        f.write('dummy image content')
+    test_dir = os.path.join(test_files_root, 'test_case_1')
     
     checker = ReferenceChecker(test_dir)
     checker.scan_files()
@@ -34,16 +26,9 @@ def test_image_reference_resolution(clean_test_files):
     assert resolved == "image_not_exist.png", \
         "对不存在的图片引用应该返回原始路径"
 
-def test_markdown_reference_resolution(clean_test_files):
+def test_markdown_reference_resolution(test_files_root):
     """测试Markdown文档引用解析"""
-    test_dir = os.path.join(clean_test_files, 'test_case_1')
-    os.makedirs(test_dir, exist_ok=True)
-    
-    # 创建测试文件
-    with open(os.path.join(test_dir, 'test.md'), 'w', encoding='utf-8') as f:
-        f.write('# Test\n[[existing_doc]]')
-    with open(os.path.join(test_dir, 'existing_doc.md'), 'w', encoding='utf-8') as f:
-        f.write('# Existing Doc')
+    test_dir = os.path.join(test_files_root, 'test_case_1')
     
     checker = ReferenceChecker(test_dir)
     checker.scan_files()
@@ -66,22 +51,9 @@ def test_markdown_reference_resolution(clean_test_files):
     assert resolved == "non_existing_doc", \
         "对不存在的文档引用应该返回原始路径"
 
-def test_reference_checking(clean_test_files):
+def test_reference_checking(test_files_root):
     """测试引用检查功能"""
-    test_dir = os.path.join(clean_test_files, 'test_case_1')
-    os.makedirs(test_dir, exist_ok=True)
-    os.makedirs(os.path.join(test_dir, 'assets'), exist_ok=True)
-    
-    # 创建测试文件
-    with open(os.path.join(test_dir, 'test.md'), 'w', encoding='utf-8') as f:
-        f.write('''# Test
-[[existing_doc]]
-![[20241025-地址组件长期规划.png]]
-![[image_not_exist.png]]''')
-    with open(os.path.join(test_dir, 'existing_doc.md'), 'w', encoding='utf-8') as f:
-        f.write('# Existing Doc')
-    with open(os.path.join(test_dir, 'assets/20241025-地址组件长期规划.png'), 'w', encoding='utf-8') as f:
-        f.write('dummy image content')
+    test_dir = os.path.join(test_files_root, 'test_case_1')
     
     checker = ReferenceChecker(test_dir)
     checker.scan_files()
@@ -96,17 +68,9 @@ def test_reference_checking(clean_test_files):
     assert "assets/20241025-地址组件长期规划.png" in checker.referenced_images, \
         "应该正确统计图片引用"
 
-def test_file_mapping(clean_test_files):
+def test_file_mapping(test_files_root):
     """测试文件映射功能"""
-    test_dir = os.path.join(clean_test_files, 'test_case_1')
-    os.makedirs(test_dir, exist_ok=True)
-    os.makedirs(os.path.join(test_dir, 'assets'), exist_ok=True)
-    
-    # 创建测试文件
-    with open(os.path.join(test_dir, 'test.md'), 'w', encoding='utf-8') as f:
-        f.write('# Test\n![[20241025-地址组件长期规划.png]]')
-    with open(os.path.join(test_dir, 'assets/20241025-地址组件长期规划.png'), 'w', encoding='utf-8') as f:
-        f.write('dummy image content')
+    test_dir = os.path.join(test_files_root, 'test_case_1')
     
     checker = ReferenceChecker(test_dir)
     checker.scan_files()
