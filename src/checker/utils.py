@@ -21,7 +21,7 @@ def is_image_file(filename: str) -> bool:
 
 def is_markdown_file(filename: str) -> bool:
     """检查文件是否是Markdown文件"""
-    return filename.lower().endswith('.md')
+    return filename.lower().endswith(('.md', '.markdown'))
 
 def get_valid_chars() -> Set[str]:
     """获取文件名中允许的字符集合"""

@@ -1,0 +1,53 @@
+# Python Development Guidelines
+
+## Project Structure
+
+- Maintain clear directory structure:
+  - src/ - Source code
+  - tests/ - Test files
+  - docs/ - Documentation
+  - config/ - Configuration files
+
+## Code Quality
+
+- Use type annotations for all functions and classes
+- Add descriptive docstrings following PEP 257
+- Maintain modular design with separate files for:
+  - Models
+  - Services
+  - Controllers
+  - Utilities
+- Use environment variables for configuration
+- Implement robust error handling and logging
+- Follow code style with Ruff
+
+## Testing
+
+- Use pytest and pytest plugins only (no unittest)
+- Place all tests in ./tests directory
+- Add __init__.py to new directories
+- Include type annotations and docstrings in tests
+- Import test fixtures when TYPE_CHECKING:
+
+  ```python
+  from _pytest.capture import CaptureFixture
+  from _pytest.fixtures import FixtureRequest 
+  from _pytest.logging import LogCaptureFixture
+  from _pytest.monkeypatch import MonkeyPatch
+  from pytest_mock.plugin import MockerFixture
+  ```
+
+## Dependencies
+
+- Use uv (<https://github.com/astral-sh/uv>) for dependency management
+- Maintain virtual environments
+
+## CI/CD
+
+- Implement with GitHub Actions or GitLab CI
+
+## Documentation
+
+- Add comprehensive docstrings
+- Maintain detailed README files
+- Preserve existing comments
