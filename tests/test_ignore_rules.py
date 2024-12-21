@@ -1,106 +1,177 @@
-import unittest
+"""
+Tests for ignore rules functionality
+"""
+
 import os
-from src.check_references import ReferenceChecker
+import unittest
+from src.checker.ignore_rules import IgnoreRules
+from tests.utils import create_test_structure, cleanup_test_dir, create_ignore_file
 
 class TestIgnoreRules(unittest.TestCase):
     def setUp(self):
-        """测试前的设置"""
+        """Set up test environment"""
         self.test_dir = os.path.join(os.path.dirname(__file__), 'test_files/test_case_ignore')
-        self.checker = ReferenceChecker(self.test_dir)
-        self.checker.scan_files()
+        cleanup_test_dir(self.test_dir)
+        os.makedirs(self.test_dir)
         
+        # Create test structure
+        self.create_test_files()
+        
+        # Initialize ignore rules
+        self.ignore_rules = IgnoreRules(self.test_dir)
+    
+    def tearDown(self):
+        """Clean up test environment"""
+        cleanup_test_dir(self.test_dir)
+    
+    def create_test_files(self):
+        """Create test files and directories"""
+        # Create .gitignore
+        gitignore_patterns = [
+            'ignored_dir/*',
+            '*.tmp',
+            'temp.*',
+            'node_modules/',
+        ]
+        create_ignore_file(self.test_dir, '.gitignore', gitignore_patterns)
+        
+        # Create .mdignore
+        mdignore_patterns = [
+            'draft_*',
+            '_private/*',
+            '*.draft.md',
+        ]
+        create_ignore_file(self.test_dir, '.mdignore', mdignore_patterns)
+        
+        # Create test structure
+        structure = {
+            'ignored_dir': {
+                'file1.txt': 'content',
+                'file2.md': 'content',
+            },
+            'normal_dir': {
+                'file1.md': 'content',
+                'file2.txt': 'content',
+            },
+            '_private': {
+                'secret.md': 'content',
+            },
+            'draft_post.md': 'draft content',
+            'normal_post.md': 'normal content',
+            'temp.txt': 'temporary content',
+            'file.tmp': 'temporary content',
+            'post.draft.md': 'draft content',
+        }
+        create_test_structure(self.test_dir, structure)
+    
+    def test_default_patterns(self):
+        """Test default ignore patterns"""
+        default_ignored = [
+            '.git/file.txt',
+            '.obsidian/workspace',
+            '.trash/deleted.md',
+            'node_modules/package.json',
+            '.DS_Store',
+            'Thumbs.db',
+        ]
+        
+        for path in default_ignored:
+            with self.subTest(path=path):
+                self.assertTrue(
+                    self.ignore_rules.should_ignore(path),
+                    f"Should ignore {path}"
+                )
+    
     def test_gitignore_patterns(self):
-        """测试.gitignore模式"""
-        # 测试目录忽略
+        """Test .gitignore patterns"""
+        # Test directory patterns
         self.assertTrue(
-            self.checker._should_ignore('ignored_dir/some_file.txt'),
-            "应该忽略 ignored_dir 中的文件"
+            self.ignore_rules.should_ignore('ignored_dir/file.txt'),
+            "Should ignore files in ignored_dir"
         )
         
-        # 测试文件模式忽略
+        # Test file patterns
         self.assertTrue(
-            self.checker._should_ignore('file.tmp'),
-            "应该忽略 .tmp 文件"
+            self.ignore_rules.should_ignore('file.tmp'),
+            "Should ignore .tmp files"
         )
         self.assertTrue(
-            self.checker._should_ignore('temp.txt'),
-            "应该忽略 temp.* 文件"
+            self.ignore_rules.should_ignore('temp.txt'),
+            "Should ignore temp.* files"
         )
         
-        # 测试正常文件不被忽略
+        # Test non-ignored files
         self.assertFalse(
-            self.checker._should_ignore('normal_doc.md'),
-            "不应该忽略正常文件"
+            self.ignore_rules.should_ignore('normal_dir/file.txt'),
+            "Should not ignore files in normal directories"
         )
-        
+    
     def test_mdignore_patterns(self):
-        """测试.mdignore模式"""
-        # 测试文件名前缀忽略
+        """Test .mdignore patterns"""
+        # Test prefix patterns
         self.assertTrue(
-            self.checker._should_ignore('draft_post.md'),
-            "应该忽略 draft_ 开头的文件"
+            self.ignore_rules.should_ignore('draft_post.md'),
+            "Should ignore draft_ files"
         )
         
-        # 测试目录忽略
+        # Test directory patterns
         self.assertTrue(
-            self.checker._should_ignore('_private/secret.md'),
-            "应该忽略 _private 目录中的文件"
+            self.ignore_rules.should_ignore('_private/secret.md'),
+            "Should ignore files in _private directory"
         )
         
-        # 测试文件扩展名模式
+        # Test suffix patterns
         self.assertTrue(
-            self.checker._should_ignore('post.draft.md'),
-            "应该忽略 .draft.md 文件"
+            self.ignore_rules.should_ignore('post.draft.md'),
+            "Should ignore .draft.md files"
         )
         
-    def test_reference_checking_with_ignores(self):
-        """测试引用检查时的忽略规则"""
-        self.checker.check_all_references()
-        
-        # 验证对被忽略文件的引用不会被记录为无效引用
-        ignored_refs = [
-            'ignored_dir/image.png',
-            'draft_post',
-            '_private/secret',
-            'temp.md',
-            'post.draft.md'
-        ]
-        
-        for ref in ignored_refs:
-            self.assertFalse(
-                any(link == ref for _, (link, _, _, _) in self.checker.invalid_links),
-                f"对被忽略文件的引用 {ref} 不应该被记录为无效引用"
-            )
-        
-        # 验证正常文件的引用仍然正常工作
+        # Test non-ignored files
         self.assertFalse(
-            any(link == "normal_doc" for _, (link, _, _, _) in self.checker.invalid_links),
-            "对正常文件的引用应该正常工作"
+            self.ignore_rules.should_ignore('normal_post.md'),
+            "Should not ignore normal files"
         )
-        
-    def test_file_scanning_with_ignores(self):
-        """测试文件扫描时的忽略规则"""
-        # 验证被忽略的文件不会出现在文件列表中
-        ignored_files = [
-            'ignored_dir/image.png',
-            'draft_post.md',
-            '_private/secret.md',
-            'temp.md',
-            'post.draft.md'
+    
+    def test_add_patterns(self):
+        """Test adding custom patterns"""
+        # Add custom patterns
+        custom_patterns = [
+            'custom_*',
+            '*.test',
+            'test_dir/',
         ]
+        self.ignore_rules.add_patterns(custom_patterns)
         
-        for file in ignored_files:
-            self.assertNotIn(
-                file,
-                self.checker.files,
-                f"被忽略的文件 {file} 不应该出现在文件列表中"
-            )
+        # Test custom patterns
+        self.assertTrue(
+            self.ignore_rules.should_ignore('custom_file.txt'),
+            "Should ignore custom_* files"
+        )
+        self.assertTrue(
+            self.ignore_rules.should_ignore('file.test'),
+            "Should ignore .test files"
+        )
+        self.assertTrue(
+            self.ignore_rules.should_ignore('test_dir/file.txt'),
+            "Should ignore files in test_dir"
+        )
+    
+    def test_pattern_precedence(self):
+        """Test pattern precedence"""
+        # Add a pattern that would match everything
+        self.ignore_rules.add_patterns(['*'])
         
-        # 验证正常文件仍然在文件列表中
-        self.assertIn(
-            'normal_doc.md',
-            self.checker.files,
-            "正常文件应该出现在文件列表中"
+        # Add a negation pattern
+        self.ignore_rules.add_patterns(['!important.md'])
+        
+        # The more specific pattern should take precedence
+        self.assertTrue(
+            self.ignore_rules.should_ignore('random.txt'),
+            "Should ignore random files"
+        )
+        self.assertFalse(
+            self.ignore_rules.should_ignore('important.md'),
+            "Should not ignore important.md"
         )
 
 if __name__ == '__main__':

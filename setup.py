@@ -32,7 +32,7 @@ setup(
     ],
     entry_points={
         "console_scripts": [
-            "md-ref-checker=src.check_references:main",
+            "md-ref-checker=src.cli:main",
         ],
     },
     package_data={

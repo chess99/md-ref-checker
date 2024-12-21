@@ -1,73 +1,38 @@
-#!/usr/bin/env python3
+"""
+Command line interface for Markdown reference checker
+"""
 
-import argparse
 import os
 import sys
-from typing import List
-
+import argparse
 from .checker import ReferenceChecker
 
-def parse_args() -> argparse.Namespace:
-    """解析命令行参数"""
-    parser = argparse.ArgumentParser(
-        description='检查 Markdown 文件中的引用完整性'
-    )
-    
-    parser.add_argument(
-        '--dir',
-        default='.',
-        help='要检查的目录路径，默认为当前目录'
-    )
-    
-    parser.add_argument(
-        '-v',
-        '--verbose',
-        type=int,
-        choices=[0, 1, 2],
-        default=0,
-        help='输出详细程度（0-2）'
-    )
-    
-    parser.add_argument(
-        '--no-color',
-        action='store_true',
-        help='禁用彩色输出'
-    )
-    
-    parser.add_argument(
-        '--ignore',
-        action='append',
-        default=[],
-        help='要忽略的文件模式（可多次使用）'
-    )
-    
-    return parser.parse_args()
+def main() -> None:
+    """命令行入口函数"""
+    parser = argparse.ArgumentParser(description='Markdown 引用检查工具')
+    parser.add_argument('--dir', type=str, default='.',
+                      help='要检查的目录路径 (默认为当前目录)')
+    parser.add_argument('-v', '--verbosity', type=int, choices=[0, 1, 2], default=0,
+                      help='输出详细程度 (0: 只显示无效引用, 1: 显示无效引用和单向链接, 2: 显示所有信息)')
+    parser.add_argument('--no-color', action='store_true',
+                      help='禁用彩色输出')
+    parser.add_argument('--ignore', type=str, action='append',
+                      help='添加要忽略的文件模式（可多次使用）')
+    args = parser.parse_args()
 
-def main() -> int:
-    """主函数"""
-    args = parse_args()
-    
     # 检查目录是否存在
+    if not os.path.exists(args.dir):
+        print(f"Error: Directory '{args.dir}' does not exist", file=sys.stderr)
+        sys.exit(1)
     if not os.path.isdir(args.dir):
-        print(f"错误：目录 '{args.dir}' 不存在", file=sys.stderr)
-        return 1
-        
-    # 创建检查器实例
+        print(f"Error: '{args.dir}' is not a directory", file=sys.stderr)
+        sys.exit(1)
+
     checker = ReferenceChecker(args.dir)
-    
-    try:
-        # 执行检查
-        checker.check_all_references()
-        
-        # TODO: 根据详细程度输出结果
-        # TODO: 添加彩色输出支持
-        # TODO: 处理忽略规则
-        
-        return 0
-        
-    except Exception as e:
-        print(f"错误：{str(e)}", file=sys.stderr)
-        return 1
+    if args.ignore:
+        checker.ignore_rules.add_patterns(args.ignore)
+    checker.check_all_references()
+    checker.print_report(args.verbosity, args.no_color)
 
 if __name__ == '__main__':
-    sys.exit(main()) 
+    main() 
