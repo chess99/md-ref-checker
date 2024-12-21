@@ -1,86 +1,68 @@
+"""Test reference checker"""
+
 import os
-from src.check_references import ReferenceChecker
+from typing import TYPE_CHECKING
+import pytest
+from src.checker.models import Config
+from src.checker.reference_checker import ReferenceChecker
 
-def test_image_reference_resolution(test_files_root):
-    """测试图片引用解析"""
-    test_dir = os.path.join(test_files_root, 'test_case_1')
-    
-    checker = ReferenceChecker(test_dir)
-    checker.scan_files()
-    
-    # 测试正常的图片引用
-    resolved = checker.resolve_link(
-        "20241025-地址组件长期规划.png",
-        "test.md",
-        is_image=True
-    )
-    assert resolved == "assets/20241025-地址组件长期规划.png", \
-        "应该正确解析图片引用"
-    
-    # 测试不存在的图片引用
-    resolved = checker.resolve_link(
-        "image_not_exist.png",
-        "test.md",
-        is_image=True
-    )
-    assert resolved == "image_not_exist.png", \
-        "对不存在的图片引用应该返回原始路径"
+if TYPE_CHECKING:
+    from _pytest.capture import CaptureFixture
+    from _pytest.fixtures import FixtureRequest
+    from _pytest.logging import LogCaptureFixture
+    from _pytest.monkeypatch import MonkeyPatch
+    from pytest_mock.plugin import MockerFixture
 
-def test_markdown_reference_resolution(test_files_root):
-    """测试Markdown文档引用解析"""
-    test_dir = os.path.join(test_files_root, 'test_case_1')
-    
-    checker = ReferenceChecker(test_dir)
-    checker.scan_files()
-    
-    # 测试正常的文档引用
-    resolved = checker.resolve_link(
-        "existing_doc",
-        "test.md",
-        is_image=False
-    )
-    assert resolved == "existing_doc.md", \
-        "应该正确解析文档引用"
-    
-    # 测试不存在的文档引用
-    resolved = checker.resolve_link(
-        "non_existing_doc",
-        "test.md",
-        is_image=False
-    )
-    assert resolved == "non_existing_doc", \
-        "对不存在的文档引用应该返回原始路径"
+@pytest.fixture
+def test_dir(request: "FixtureRequest") -> str:
+    """测试目录路径"""
+    return os.path.join(request.config.rootdir, "tests", "test_files")
 
-def test_reference_checking(test_files_root):
-    """测试引用检查功能"""
-    test_dir = os.path.join(test_files_root, 'test_case_1')
+@pytest.fixture
+def checker(test_dir: str) -> ReferenceChecker:
+    """引用检查器实例"""
+    config = Config(root_dir=test_dir)
+    return ReferenceChecker(config)
+
+def test_check_references_basic(checker: ReferenceChecker) -> None:
+    """测试基本引用检查"""
+    stats = checker.check_references()
     
-    checker = ReferenceChecker(test_dir)
-    checker.scan_files()
-    checker.check_all_references()
+    # 验证引用统计
+    assert len(stats.invalid_references) == 0
+    assert len(stats.outgoing["case1/doc1.md"]) == 1
+    assert len(stats.incoming["case1/doc2.md"]) == 1
+
+def test_check_references_with_invalid_links(checker: ReferenceChecker) -> None:
+    """测试包含无效引用的情况"""
+    stats = checker.check_references()
     
     # 验证无效引用
-    invalid_links = [(link, source) for source, (link, _, _, _) in checker.invalid_links]
-    assert ('image_not_exist.png', 'test.md') in invalid_links, \
-        "应该检测到无效的图片引用"
-    
-    # 验证图片引用统计
-    assert "assets/20241025-地址组件长期规划.png" in checker.referenced_images, \
-        "应该正确统计图片引用"
+    invalid_refs = [ref for ref in stats.invalid_references if ref.source == "case2/invalid.md"]
+    assert len(invalid_refs) > 0
+    assert any(ref.target == "non-existent.md" for ref in invalid_refs)
 
-def test_file_mapping(test_files_root):
-    """测试文件映射功能"""
-    test_dir = os.path.join(test_files_root, 'test_case_1')
+def test_check_references_with_images(checker: ReferenceChecker) -> None:
+    """测试图片引用检查"""
+    stats = checker.check_references()
     
-    checker = ReferenceChecker(test_dir)
-    checker.scan_files()
+    # 验证图片引用
+    assert "case3/image.png" in stats.referenced_images
+    assert len(stats.referenced_images) > 0
+
+def test_check_references_with_assets(checker: ReferenceChecker) -> None:
+    """测试 assets 目录中的图片引用"""
+    stats = checker.check_references()
     
-    # 测试图片文件映射
-    assert "assets/20241025-地址组件长期规划.png" in checker.image_files, \
-        "应该正确识别图片文件"
+    # 验证 assets 目录中的图片引用
+    assert "assets/test.png" in stats.referenced_images
+
+def test_print_report(checker: ReferenceChecker, capsys: "CaptureFixture[str]") -> None:
+    """测试报告打印"""
+    stats = checker.check_references()
+    checker.print_report()
     
-    # 测试文件名到实际文件的映射
-    assert "20241025-地址组件长期规划.png" in checker.file_map, \
-        "应该正确建立文件名映射"
-    assert "assets/20241025-地址组件长期规划.png" in checker.file_map["20241025-地址组件长期规划.png"], \
-        "应该正确映射图片文件路径" 
+    captured = capsys.readouterr()
+    assert "Summary:" in captured.out
+    assert "Total files:" in captured.out
+    assert "Invalid references:" in captured.out

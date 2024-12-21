@@ -3,36 +3,41 @@ Utility functions for Markdown reference checker
 """
 
 import os
-import re
 from typing import Set
 
 def normalize_path(path: str) -> str:
-    """规范化路径
+    """标准化路径
 
     Args:
-        path: 原始路径
+        path: 要标准化的路径
 
     Returns:
-        规范化后的路径
+        标准化后的路径
     """
-    if not path:
-        return ''
-    
-    # 统一使用正斜杠
-    path = path.replace('\\', '/')
-    
-    # 移除开头的 ./
-    if path.startswith('./'):
-        path = path[2:]
-    
-    # 规范化多个斜杠
-    path = re.sub(r'/+', '/', path)
-    
-    # 移除末尾的斜杠
-    if path.endswith('/') and len(path) > 1:
-        path = path[:-1]
-    
-    return path
+    return path.replace('\\', '/')
+
+def is_markdown_file(file_path: str) -> bool:
+    """检查是否为 Markdown 文件
+
+    Args:
+        file_path: 文件路径
+
+    Returns:
+        是否为 Markdown 文件
+    """
+    return file_path.lower().endswith('.md')
+
+def is_image_file(file_path: str) -> bool:
+    """检查是否为图片文件
+
+    Args:
+        file_path: 文件路径
+
+    Returns:
+        是否为图片文件
+    """
+    image_extensions = {'.png', '.jpg', '.jpeg', '.gif', '.bmp', '.svg', '.webp'}
+    return os.path.splitext(file_path.lower())[1] in image_extensions
 
 def get_file_name(path: str) -> str:
     """获取文件名（不含扩展名）
@@ -57,28 +62,6 @@ def get_directory_name(path: str) -> str:
         目录名
     """
     return os.path.basename(os.path.dirname(path))
-
-def is_markdown_file(filename: str) -> bool:
-    """判断是否为 Markdown 文件
-
-    Args:
-        filename: 文件名
-
-    Returns:
-        是否为 Markdown 文件
-    """
-    return filename.lower().endswith('.md')
-
-def is_image_file(filename: str) -> bool:
-    """判断是否为图片文件
-
-    Args:
-        filename: 文件名
-
-    Returns:
-        是否为图片文件
-    """
-    return filename.lower().endswith(('.png', '.jpg', '.jpeg', '.gif', '.webp', '.svg'))
 
 def get_relative_path(path: str, base_path: str) -> str:
     """获取相对路径"""

@@ -3,10 +3,9 @@ File scanning functionality for Markdown reference checker
 """
 
 import os
-from typing import Dict, Set, List
-from .utils import normalize_path, is_image_file, is_markdown_file, get_file_name
+from typing import Set
 from .ignore_rules import IgnoreRules
-from collections import defaultdict
+from .utils import is_markdown_file, is_image_file
 
 class FileScanner:
     """文件扫描器"""
@@ -21,15 +20,17 @@ class FileScanner:
         self.root_dir = root_dir
         self.ignore_rules = ignore_rules
         self.files: Set[str] = set()
-        self.file_names: Set[str] = set()
+        self.markdown_files: Set[str] = set()
+        self.image_files: Set[str] = set()
 
     def scan(self) -> None:
         """扫描文件"""
         self.files.clear()
-        self.file_names.clear()
+        self.markdown_files.clear()
+        self.image_files.clear()
 
         for root, _, files in os.walk(self.root_dir):
-            rel_root = os.path.relpath(root, self.root_dir)
+            rel_root = os.path.relpath(root, self.root_dir).replace('\\', '/')
             if rel_root == '.':
                 rel_root = ''
 
@@ -37,8 +38,10 @@ class FileScanner:
                 rel_path = os.path.join(rel_root, file).replace('\\', '/')
                 if not self.ignore_rules.should_ignore(rel_path):
                     self.files.add(rel_path)
-                    name = get_file_name(file)
-                    self.file_names.add(name)
+                    if is_markdown_file(rel_path):
+                        self.markdown_files.add(rel_path)
+                    elif is_image_file(rel_path):
+                        self.image_files.add(rel_path)
 
     def rescan(self) -> None:
         """重新扫描文件"""
@@ -51,7 +54,7 @@ class FileScanner:
         Returns:
             Markdown 文件集合
         """
-        return {f for f in self.files if is_markdown_file(f)}
+        return self.markdown_files
 
     @property
     def image_files(self) -> Set[str]:
@@ -60,7 +63,7 @@ class FileScanner:
         Returns:
             图片文件集合
         """
-        return {f for f in self.files if is_image_file(f)}
+        return self.image_files
 
     def get_file_mapping(self, file_name: str = None) -> Dict[str, List[str]]:
         """获取文件名到文件路径的映射
