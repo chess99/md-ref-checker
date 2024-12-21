@@ -1,36 +1,51 @@
+"""Test configuration and fixtures"""
+
 import os
-import pytest
 import shutil
-
-@pytest.fixture(scope="session")
-def test_files_root():
-    """Return the root directory for test files"""
-    return os.path.join(os.path.dirname(__file__), 'test_files')
-
-@pytest.fixture(autouse=True)
-def clean_test_files(request, test_files_root):
-    """Clean up temporary test files before and after each test"""
-    # Get the test function name
-    test_name = request.node.name
-    # Create a temporary directory specific to this test
-    temp_test_dir = os.path.join(test_files_root, f'temp_{test_name}')
-    
-    # Clean up before test
-    if os.path.exists(temp_test_dir):
-        shutil.rmtree(temp_test_dir)
-    os.makedirs(temp_test_dir)
-    
-    def cleanup():
-        # Clean up after test
-        if os.path.exists(temp_test_dir):
-            shutil.rmtree(temp_test_dir)
-    
-    request.addfinalizer(cleanup)
-    return temp_test_dir
+import pytest
+from typing import Generator, Dict, Any
+from src.checker.models import Config
 
 @pytest.fixture
-def temp_dir(test_files_root):
-    """Create a temporary directory for tests that need it"""
-    temp_path = os.path.join(test_files_root, 'temp')
-    os.makedirs(temp_path, exist_ok=True)
-    return temp_path 
+def test_files_dir(request: Any) -> str:
+    """测试文件目录路径"""
+    return os.path.join(request.config.rootdir, "tests", "test_files")
+
+@pytest.fixture
+def temp_dir(tmp_path: Any) -> Generator[str, None, None]:
+    """临时目录，每个测试后自动清理"""
+    temp_path = str(tmp_path)
+    yield temp_path
+    if os.path.exists(temp_path):
+        shutil.rmtree(temp_path)
+
+@pytest.fixture
+def test_config(test_files_dir: str) -> Config:
+    """测试配置"""
+    return Config(
+        root_dir=test_files_dir,
+        search_paths=['.', 'assets', 'images'],
+        verbosity=2
+    )
+
+def create_test_file(path: str, content: str) -> None:
+    """创建测试文件
+
+    Args:
+        path: 文件路径
+        content: 文件内容
+    """
+    os.makedirs(os.path.dirname(path), exist_ok=True)
+    with open(path, 'w', encoding='utf-8') as f:
+        f.write(content)
+
+def create_test_files(root_dir: str, files: Dict[str, str]) -> None:
+    """批量创建测试文件
+
+    Args:
+        root_dir: 根目录
+        files: 文件路径和内容的映射
+    """
+    for path, content in files.items():
+        full_path = os.path.join(root_dir, path)
+        create_test_file(full_path, content)

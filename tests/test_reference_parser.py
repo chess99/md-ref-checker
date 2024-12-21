@@ -1,134 +1,144 @@
-"""
-Tests for reference parser functionality
-"""
+"""Test reference parser"""
 
-import os
+import pytest
 from src.checker.reference_parser import ReferenceParser
 
-def test_basic_reference_parsing():
-    """Test basic reference parsing"""
-    parser = ReferenceParser()
-    
-    # Test basic markdown reference
-    content = "Here is a [[link]] to another document"
-    refs = parser.parse_references(content)
-    assert len(refs) == 1
-    assert refs[0] == ("link", False)
-    
-    # Test basic image reference
-    content = "Here is an ![[image.png]] embedded in the document"
-    refs = parser.parse_references(content)
-    assert len(refs) == 1
-    assert refs[0] == ("image.png", True)
+@pytest.fixture
+def parser() -> ReferenceParser:
+    """创建引用解析器实例"""
+    return ReferenceParser()
 
-def test_multiple_references():
-    """Test parsing multiple references"""
-    parser = ReferenceParser()
-    
-    content = """# Document with multiple references
-    
-Here is a [[link1]] and another [[link2]].
-And some images: ![[image1.png]] and ![[image2.jpg]]"""
-    
+def test_parse_markdown_links(parser: ReferenceParser) -> None:
+    """测试 Markdown 链接解析"""
+    content = """
+    # Test Document
+    [Link 1](doc1.md)
+    [Link 2](./doc2.md)
+    [Link 3](../doc3.md)
+    [External](https://example.com)
+    [Anchor](#section)
+    """
     refs = parser.parse_references(content)
+    
+    assert len(refs) == 3
+    assert ('doc1.md', False) in refs
+    assert ('doc2.md', False) in refs
+    assert ('../doc3.md', False) in refs
+
+def test_parse_image_links(parser: ReferenceParser) -> None:
+    """测试图片链接解析"""
+    content = """
+    # Test Document
+    ![Image 1](img1.png)
+    ![Image 2](./img2.jpg)
+    ![Image 3](https://example.com/img.png)
+    """
+    refs = parser.parse_references(content)
+    
+    assert len(refs) == 2
+    assert ('img1.png', True) in refs
+    assert ('img2.jpg', True) in refs
+
+def test_parse_wiki_links(parser: ReferenceParser) -> None:
+    """测试 Wiki 风格链接解析"""
+    content = """
+    # Test Document
+    [[Page 1]]
+    [[Page 2|Alias]]
+    ![[Image 1]]
+    ![[Image 2|Caption]]
+    """
+    refs = parser.parse_references(content)
+    
     assert len(refs) == 4
-    assert ("link1", False) in refs
-    assert ("link2", False) in refs
-    assert ("image1.png", True) in refs
-    assert ("image2.jpg", True) in refs
+    assert ('Page 1', False) in refs
+    assert ('Page 2', False) in refs
+    assert ('Image 1', True) in refs
+    assert ('Image 2', True) in refs
 
-def test_reference_with_alias():
-    """Test parsing references with aliases"""
-    parser = ReferenceParser()
+def test_ignore_code_blocks(parser: ReferenceParser) -> None:
+    """测试代码块忽略"""
+    content = """
+    # Test Document
+    [Real Link](doc.md)
     
-    # Test markdown reference with alias
-    content = "Here is a [[actual_link|Displayed Text]]"
+    ```python
+    # This is a code block
+    [Fake Link](code.md)
+    ```
+    
+    `[Inline Code](code.md)`
+    
+    [Another Real Link](doc2.md)
+    """
     refs = parser.parse_references(content)
-    assert len(refs) == 1
-    assert refs[0] == ("actual_link", False)
     
-    # Test image reference with alias
-    content = "Here is an ![[actual_image.png|alt text]]"
-    refs = parser.parse_references(content)
-    assert len(refs) == 1
-    assert refs[0] == ("actual_image.png", True)
-
-def test_reference_in_code_blocks():
-    """Test handling references in code blocks"""
-    parser = ReferenceParser()
-    
-    # Test references in inline code
-    content = "This is `[[not a reference]]` in code"
-    refs = parser.parse_references(content)
-    assert len(refs) == 0
-    
-    # Test references in fenced code blocks
-    content = """Here is a code block:
-```
-[[not a reference]]
-![[not an image]]
-```
-But this [[is a reference]]"""
-    
-    refs = parser.parse_references(content)
-    assert len(refs) == 1
-    assert refs[0] == ("is a reference", False)
-
-def test_special_characters():
-    """Test parsing references with special characters"""
-    parser = ReferenceParser()
-    
-    # Test spaces in reference
-    content = "[[file with spaces]]"
-    refs = parser.parse_references(content)
-    assert len(refs) == 1
-    assert refs[0] == ("file with spaces", False)
-    
-    # Test special characters in reference
-    content = "[[file#with#hash]] and [[file&with&ampersand]]"
-    refs = parser.parse_references(content)
     assert len(refs) == 2
-    assert ("file#with#hash", False) in refs
-    assert ("file&with&ampersand", False) in refs
+    assert ('doc.md', False) in refs
+    assert ('doc2.md', False) in refs
+
+def test_ignore_html_comments(parser: ReferenceParser) -> None:
+    """测试 HTML 注释忽略"""
+    content = """
+    # Test Document
+    [Real Link](doc.md)
     
-    # Test Unicode characters
-    content = "[[文件名]] and ![[图片.png]]"
+    <!-- 
+    This is a comment
+    [Fake Link](comment.md)
+    -->
+    
+    [Another Real Link](doc2.md)
+    """
     refs = parser.parse_references(content)
+    
     assert len(refs) == 2
-    assert ("文件名", False) in refs
-    assert ("图片.png", True) in refs
+    assert ('doc.md', False) in refs
+    assert ('doc2.md', False) in refs
 
-def test_nested_references():
-    """Test handling nested references"""
-    parser = ReferenceParser()
+def test_mixed_content(parser: ReferenceParser) -> None:
+    """测试混合内容"""
+    content = """
+    # Test Document
+    [Link](doc1.md)
+    ![Image](img1.png)
+    [[Wiki Link]]
+    ![[Wiki Image]]
     
-    # Test nested markdown references
-    content = "[[outer [[inner]] reference]]"
-    refs = parser.parse_references(content)
-    assert len(refs) == 1
-    assert refs[0] == ("outer [[inner]] reference", False)
+    ```python
+    # Code block
+    [Fake](code.md)
+    ```
     
-    # Test nested image references
-    content = "![[outer ![[inner]] image]]"
+    <!--
+    [Comment](comment.md)
+    -->
+    
+    [External](https://example.com)
+    [Anchor](#section)
+    """
     refs = parser.parse_references(content)
-    assert len(refs) == 1
-    assert refs[0] == ("outer ![[inner]] image", True)
+    
+    assert len(refs) == 4
+    assert ('doc1.md', False) in refs
+    assert ('img1.png', True) in refs
+    assert ('Wiki Link', False) in refs
+    assert ('Wiki Image', True) in refs
 
-def test_invalid_references():
-    """Test handling invalid reference formats"""
-    parser = ReferenceParser()
-    
-    # Test unclosed references
-    content = "[[unclosed reference"
+def test_duplicate_references(parser: ReferenceParser) -> None:
+    """测试重复引用"""
+    content = """
+    # Test Document
+    [Link](doc.md)
+    [Same Link](doc.md)
+    ![Image](img.png)
+    ![Same Image](img.png)
+    [[Page]]
+    [[Page|Alias]]
+    """
     refs = parser.parse_references(content)
-    assert len(refs) == 0
     
-    # Test empty references
-    content = "[[]] and ![[]]"
-    refs = parser.parse_references(content)
-    assert len(refs) == 0
-    
-    # Test malformed references
-    content = "[ [not a reference]] and ![not an image]]"
-    refs = parser.parse_references(content)
-    assert len(refs) == 0
+    assert len(refs) == 3
+    assert ('doc.md', False) in refs
+    assert ('img.png', True) in refs
+    assert ('Page', False) in refs
