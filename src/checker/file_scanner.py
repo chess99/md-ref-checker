@@ -4,7 +4,7 @@ File scanning functionality for Markdown reference checker
 
 import os
 from typing import Dict, Set, List
-from .utils import normalize_path, is_image_file
+from .utils import normalize_path, is_image_file, is_markdown_file
 from .ignore_rules import IgnoreRules
 
 class FileScanner:
@@ -37,13 +37,12 @@ class FileScanner:
             
             for file in files:
                 # 获取相对路径
-                rel_path = os.path.join(rel_root, file).replace('\\', '/')
+                rel_path = os.path.join(rel_root, file)
+                norm_path = normalize_path(rel_path)
                 
                 # 检查文件是否应该被忽略
-                if self.ignore_rules.should_ignore(rel_path):
+                if self.ignore_rules.should_ignore(norm_path):
                     continue
-                
-                norm_path = normalize_path(rel_path)
                 
                 # 保存完整路径
                 self.files.add(norm_path)
@@ -72,4 +71,4 @@ class FileScanner:
     
     def get_file_mapping(self, key: str) -> List[str]:
         """获取文件映射"""
-        return self.file_map.get(key, []) 
+        return self.file_map.get(key, [])

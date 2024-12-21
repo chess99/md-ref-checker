@@ -1,81 +1,94 @@
-# md-ref-checker
+# Markdown Reference Checker
 
-A powerful tool for checking references in Markdown files, especially designed for Obsidian-style wiki links.
+一个用于检查 Markdown 文件中引用完整性的工具。它可以：
 
-## Features
+- 检查图片引用是否有效
+- 检查文件链接是否有效
+- 检查未使用的图片文件
+- 生成引用统计信息
 
-- Check markdown references:
-  - Document references `[[filename]]` or `[[filename|display text]]`
-  - Image references `![[image_filename]]`
-  - Web image references `![alt text](https://image_url)`
-  - Check unidirectional links: A references B, but B doesn't reference A
-  - Generate reference statistics
-
-- File organization checks:
-  - Support for pinyin index + Chinese name in root directory
-  - Direct Chinese names for subdirectories and files
-  - Images stored in the `assets/` folder
-
-- Image specification checks:
-  - Detect unreferenced image files
-  - Support common image formats: PNG, JPG, etc.
-  - Check image reference integrity
-
-## Installation
+## 安装
 
 ```bash
-pip install md-ref-checker
+pip install .
 ```
 
-## Usage
+## 使用方法
 
-Basic usage:
+基本用法：
 
 ```bash
-md-ref-checker --dir /path/to/markdown/files
+md-ref-checker [目录路径]
 ```
 
-Options:
+如果不指定目录路径，将检查当前目录。
 
-- `--dir`: Directory path to check (default: current directory)
-- `-v, --verbosity`: Output verbosity (0-2)
-  - 0: Show only invalid references and unused images
-  - 1: Show invalid references, unused images, and unidirectional links
-  - 2: Show all reference statistics
-- `--no-color`: Disable colored output
-- `--ignore`: Add file patterns to ignore (can be used multiple times)
+### 命令行选项
 
-Example:
+- `--ignore`, `-i`: 指定要忽略的文件或目录的 glob 模式（可多次指定）
+  ```bash
+  md-ref-checker --ignore "node_modules/**" --ignore "*.tmp"
+  ```
 
-```bash
-md-ref-checker --dir ./docs -v 2 --ignore "*.tmp" --ignore "drafts/*"
+- `--no-unused`: 不检查未使用的图片文件
+  ```bash
+  md-ref-checker --no-unused
+  ```
+
+- `--json`: 以 JSON 格式输出结果
+  ```bash
+  md-ref-checker --json
+  ```
+
+### 示例输出
+
+```
+损坏的引用：
+
+docs/guide.md:
+  - images/missing.png
+  - api/nonexistent.md
+
+未使用的图片：
+  - assets/unused.png
+  - images/old.jpg
+
+统计信息：
+  Markdown 文件总数：15
+  图片文件总数：8
+  损坏的引用总数：2
+  包含损坏引用的文件数：1
+  未使用的图片数：2
 ```
 
-## Features
+## 开发
 
-- Support for relative and absolute paths
-- Ignore references in code blocks
-- Ignore references in inline code
-- Correctly handle task lists and other Markdown syntax
-- Support for `.gitignore` and custom ignore rules
-- Detailed error location reporting (line number, column)
+### 环境设置
 
-## Development
+1. 克隆仓库：
+   ```bash
+   git clone https://github.com/yourusername/md-ref-checker.git
+   cd md-ref-checker
+   ```
 
-To set up the development environment:
+2. 创建虚拟环境：
+   ```bash
+   python -m venv venv
+   source venv/bin/activate  # Linux/macOS
+   venv\Scripts\activate     # Windows
+   ```
 
-```bash
-git clone https://github.com/yourusername/md-ref-checker.git
-cd md-ref-checker
-pip install -e ".[dev]"
-```
+3. 安装开发依赖：
+   ```bash
+   pip install -e ".[dev]"
+   ```
 
-Run tests:
+### 运行测试
 
 ```bash
 pytest
 ```
 
-## License
+## 许可证
 
-This project is licensed under the MIT License - see the [LICENSE](LICENSE) file for details. 
+MIT License 

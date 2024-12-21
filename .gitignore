@@ -30,6 +30,9 @@ ENV/
 .vscode/
 *.swp
 *.swo
+.project
+.pydevproject
+.settings/
 
 # Testing
 .coverage
@@ -38,8 +41,8 @@ htmlcov/
 .tox/
 
 # Distribution
-*.tar.gz
-*.whl
+dist/
+build/
 
 # Misc
 .DS_Store
