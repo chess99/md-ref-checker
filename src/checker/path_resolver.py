@@ -16,6 +16,10 @@ class PathResolver:
     
     def resolve_link(self, link: str, current_file: str, is_image: bool = False) -> str:
         """解析引用链接，处理相对路径"""
+        # 规范化路径
+        link = normalize_path(link)
+        current_file = normalize_path(current_file)
+        
         # 如果是绝对路径（以/开头）
         if link.startswith('/'):
             link = link.lstrip('/')
@@ -24,18 +28,21 @@ class PathResolver:
             current_dir = os.path.dirname(current_file)
             if current_dir:
                 link = os.path.join(current_dir, link)
+                # 规范化路径，处理 .. 和 .
+                link = os.path.normpath(link)
+                link = normalize_path(link)
         
-        # 规范化路径
-        link = normalize_path(link)
         base_link = os.path.splitext(link)[0]  # 不带扩展名的路径
         base_name = os.path.basename(link)
         base_name_no_ext = os.path.splitext(base_name)[0]
         
         # 如果是图片引用，优先在assets目录下查找
         if is_image:
-            # 如果已经在assets目录下，直接返回
+            # 如果已经在assets目录下，检查是否存在
             if link.startswith('assets/'):
-                return link
+                if link in self.file_scanner.image_files:
+                    self.referenced_images.add(link)
+                    return link
             
             # 尝试在assets目录下查找
             assets_path = f"assets/{base_name}"
@@ -47,6 +54,9 @@ class PathResolver:
             if link in self.file_scanner.image_files:
                 self.referenced_images.add(link)
                 return link
+            
+            # 如果找不到图片，返回原始链接
+            return link
         
         # 检查所有可能的映射
         possible_keys = [
@@ -76,13 +86,5 @@ class PathResolver:
                     if files:
                         return files[0]
         
-        # 如果都找不到，尝试添加.md扩展名（对于非图片引用）
-        if not is_image and not link.endswith('.md'):
-            return f"{link}.md"
-        
-        # 如果是图片引用但找不到文件，尝试添加assets/前缀
-        if is_image and not link.startswith('assets/'):
-            return f"assets/{link}"
-        
-        # 如果都找不到，返回原始链接
-        return link 
+        # 如果��找不到，返回原始链接
+        return link

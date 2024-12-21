@@ -4,7 +4,7 @@ Reference parsing functionality for Markdown reference checker
 
 import os
 import re
-from typing import List, Set, Tuple
+from typing import List, Set, Tuple, Dict
 from .utils import normalize_path, normalize_link
 
 class ReferenceParser:
@@ -25,7 +25,91 @@ class ReferenceParser:
         
         # 匹配引用定义: [ref]: url
         self.ref_def_pattern = re.compile(r'^\s*\[([^\]]+)\]:\s*(\S+)(?:\s+"[^"]*")?$')
-    
+
+    @staticmethod
+    def find_references_in_text(text: str, line_offset: int = 1) -> List[Tuple[str, int, bool]]:
+        """从文本中查找所有引用
+        
+        Args:
+            text: 要解析的文本内容
+            line_offset: 行号偏移量，用于调整返回的行号
+            
+        Returns:
+            List[Tuple[str, int, bool]]: 引用列表，每个元素为 (引用文本, 行号, 是否为图片引用)
+        """
+        references = []
+        
+        # 跳过代码块内的内容
+        in_code_block = False
+        current_line = line_offset
+        
+        # 分行处理以跟踪行号
+        lines = text.split('\n')
+        for line in lines:
+            line = line.strip()
+            
+            # 检查代码块标记
+            if line.startswith('```'):
+                in_code_block = not in_code_block
+                current_line += 1
+                continue
+            
+            # 在代码块内则跳过
+            if in_code_block:
+                current_line += 1
+                continue
+                
+            # 跳过表格语法
+            if line.startswith('|') and line.endswith('|'):
+                current_line += 1
+                continue
+                
+            # 跳过引用块
+            if line.startswith('>'):
+                current_line += 1
+                continue
+                
+            # 处理行内代码和HTML标签
+            text_to_process = line
+            
+            # 移除HTML标签内容
+            text_to_process = re.sub(r'<[^>]+>.*?</[^>]+>', '', text_to_process)
+            
+            # 处理行内代码
+            parts = text_to_process.split('`')
+            if len(parts) % 2 == 0:  # 如果有未闭合的行内代码，跳过整行
+                current_line += 1
+                continue
+                
+            # 只处理不在行内代码中的部分
+            final_text = ''
+            for i, part in enumerate(parts):
+                if i % 2 == 0:  # 不在行内代码中的部分
+                    final_text += part
+            
+            # 收集所有引用及其位置
+            refs_with_pos = []
+            
+            # 查找图片引用 ![[...]]
+            for match in re.finditer(r'!\[\[(.*?)(?:\|.*?)?\]\]', final_text):
+                ref = match.group(1).strip()
+                if ref and not ref.startswith(('http://', 'https://', 'ftp://')):
+                    refs_with_pos.append((ref, match.start(), True))
+            
+            # 查找普通引用 [[...]]
+            for match in re.finditer(r'(?<!!)\[\[(.*?)(?:\|.*?)?\]\]', final_text):
+                ref = match.group(1).strip()
+                if ref and not ref.startswith(('http://', 'https://', 'ftp://')):
+                    refs_with_pos.append((ref, match.start(), False))
+            
+            # 按位置排序并添加到结果中
+            refs_with_pos.sort(key=lambda x: x[1])
+            references.extend((ref, current_line, is_image) for ref, _, is_image in refs_with_pos)
+            
+            current_line += 1
+        
+        return references
+
     def parse_file(self, file_path: str) -> Tuple[Set[str], Set[str]]:
         """解析文件中的所有引用
         
