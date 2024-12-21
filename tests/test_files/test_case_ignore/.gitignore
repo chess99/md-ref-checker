@@ -1,0 +1,6 @@
+# Git ignore patterns
+ignored_dir/
+*.tmp
+temp.*
+.DS_Store
+node_modules/ 
