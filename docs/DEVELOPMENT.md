@@ -87,12 +87,14 @@ tests/test_files/
 ### 环境设置
 
 1. 克隆仓库
+
 ```bash
 git clone https://github.com/yourusername/md-ref-checker.git
 cd md-ref-checker
 ```
 
 2. 创建虚拟环境
+
 ```bash
 python -m venv venv
 source venv/bin/activate  # Linux/Mac
@@ -101,6 +103,7 @@ venv\Scripts\activate  # Windows
 ```
 
 3. 安装依赖
+
 ```bash
 pip install -r requirements.txt
 ```
@@ -129,6 +132,7 @@ python -m pytest tests/
 
 - [ ] 支持更多的引用格式
 - [ ] 添加引用关系可视化
+
 - [ ] 优化性能
 - [ ] 支持更多的忽略规则
-- [ ] 添加自动修复功能 
+- [ ] 添加自动修复功能

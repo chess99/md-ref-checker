@@ -6,8 +6,22 @@ import os
 from typing import Set
 
 def normalize_path(path: str) -> str:
-    """标准化路径，统一使用正斜杠"""
-    return path.replace('\\', '/')
+    """规范化路径。
+    
+    Args:
+        path: 输入路径
+        
+    Returns:
+        规范化后的路径
+    """
+    # 将反斜杠转换为正斜杠
+    path = path.replace('\\', '/')
+    
+    # 处理多个连续的斜杠
+    while '//' in path:
+        path = path.replace('//', '/')
+        
+    return path
 
 def is_markdown_file(filename: str) -> bool:
     """判断是否为 Markdown 文件"""

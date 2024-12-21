@@ -1,11 +1,13 @@
 """工具函数模块"""
 
 import os
-from typing import List, Set
+from typing import List, Set, Optional
 
-def normalize_path(path: str) -> str:
+def normalize_path(path: Optional[str]) -> str:
     """标准化路径，统一使用正斜杠"""
-    return path.replace('\\', '/')
+    if not path:
+        return ''
+    return path.replace('\\', '/').replace('//', '/')
 
 def is_markdown_file(filename: str) -> bool:
     """检查文件是否为 Markdown 文件"""
@@ -61,3 +63,20 @@ def find_markdown_files(
             markdown_files.add(normalize_path(rel_path))
             
     return markdown_files 
+
+def get_file_name(path: Optional[str]) -> str:
+    """Get the file name without extension from a path."""
+    if not path:
+        return ''
+    base = os.path.basename(path)
+    if base.startswith('.'):
+        return base
+    return os.path.splitext(base)[0]
+
+def get_directory_name(path: Optional[str]) -> str:
+    """Get the directory name from a path."""
+    if not path:
+        return ''
+    if path.endswith('/'):
+        return path[:-1]
+    return os.path.dirname(normalize_path(path))

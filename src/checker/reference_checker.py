@@ -3,9 +3,10 @@ Main reference checker class for Markdown reference checker
 """
 
 import os
+import re
 from collections import defaultdict
-from typing import Dict, Set, List, Tuple, DefaultDict
-
+from typing import Dict, Set, List, Tuple, DefaultDict, Optional, Union
+from .utils import normalize_path, is_markdown_file
 from .ignore_rules import IgnoreRules
 from .file_scanner import FileScanner
 from .path_resolver import PathResolver
@@ -19,11 +20,13 @@ class ReferenceChecker:
         self.ignore_rules = IgnoreRules(self.root_dir)
         self.file_scanner = FileScanner(self.root_dir, self.ignore_rules)
         self.path_resolver = PathResolver(self.file_scanner)
+        self.parser = ReferenceParser()
         
-        self.invalid_links: List[Tuple[str, Tuple[str, int, int, str]]] = []
+        self.invalid_links: List[Tuple[str, Tuple[str, str, bool, Optional[str]]]] = []
         self.unidirectional_links: List[Tuple[str, str]] = []
-        self.reference_stats: DefaultDict[str, Dict[str, Union[int, Set[str]]]] = \
-            defaultdict(lambda: {"incoming": 0, "outgoing": set()})
+        self.reference_stats: DefaultDict[str, Dict[str, Set[str]]] = \
+            defaultdict(lambda: {"incoming": set(), "outgoing": set()})
+        self.referenced_images: Set[str] = set()
     
     def scan_files(self) -> None:
         """扫描文件系统"""
@@ -80,43 +83,74 @@ class ReferenceChecker:
             return [], set()
     
     def check_all_references(self) -> None:
-        """检查所有文件的引用"""
-        self.scan_files()
+        """检查所有引用"""
+        self.invalid_links.clear()
+        self.referenced_images.clear()
         
-        # 检查每个文件
-        for root, _, files in os.walk(self.root_dir):
-            for file in files:
-                if file.endswith('.md'):
-                    full_path = os.path.join(root, file)
-                    rel_path = os.path.relpath(full_path, self.root_dir)
-                    norm_path = self.normalize_path(rel_path)
-                    
-                    # 如果文件应该被忽略，则跳过检查
-                    if self.ignore_rules.should_ignore(norm_path):
-                        continue
-                    
-                    invalid, outgoing = self.check_file(full_path)
-                    
-                    # 记录无效引用
-                    for link_info in invalid:
-                        self.invalid_links.append((norm_path, link_info))
-                    
-                    # 更新引用统计（只统计markdown文件，且排除被忽略的文件）
-                    outgoing = {link for link in outgoing 
-                              if link in self.file_scanner.files 
-                              and not self.ignore_rules.should_ignore(link)}
-                    self.reference_stats[norm_path]["outgoing"] = outgoing
-                    for link in outgoing:
-                        self.reference_stats[link]["incoming"] += 1
+        # 初始化引用统计
+        self.reference_stats = {}
+        for file in self.files:
+            if file.endswith('.md'):
+                self.reference_stats[file] = {
+                    'outgoing': set(),
+                    'incoming': set()
+                }
         
-        # 检查单向链接（仅检查markdown文件之间的链接，且排除被忽略的文件）
-        for source, data in self.reference_stats.items():
-            if source in self.file_scanner.files and not self.ignore_rules.should_ignore(source):
-                for target in data["outgoing"]:
-                    if target in self.file_scanner.files \
-                            and not self.ignore_rules.should_ignore(target) \
-                            and source not in self.reference_stats[target]["outgoing"]:
-                        self.unidirectional_links.append((source, target))
+        # 检查每个Markdown文件中的引用
+        for file in self.files:
+            if file.endswith('.md'):
+                self._check_file_references(file)
+                
+        # 更新incoming引用
+        for file, stats in self.reference_stats.items():
+            for target in stats['outgoing']:
+                if target in self.reference_stats:
+                    self.reference_stats[target]['incoming'].add(file)
+    
+    def _check_file_references(self, file_path: str) -> None:
+        """检查单个文件中的引用。
+        
+        Args:
+            file_path: 文件路径
+        """
+        try:
+            with open(file_path, 'r', encoding='utf-8') as f:
+                content = f.read()
+            
+            # 解析引用
+            references = self.parser.parse_references(content)
+            for link, is_image in references:
+                resolved_link = self.path_resolver.resolve_link(link, file_path, is_image)
+                
+                # 如果引用文件应该被忽略，则跳过检查
+                if self.ignore_rules.should_ignore(resolved_link):
+                    continue
+                
+                if is_image:
+                    if resolved_link.startswith('assets/'):
+                        self.referenced_images.add(resolved_link)
+                    # 检查图片是否存在
+                    if resolved_link not in self.file_scanner.image_files:
+                        self.invalid_links.append((file_path, (link, resolved_link, is_image, None)))
+                else:
+                    # 只统计 Markdown 文件之间的引用
+                    if resolved_link.endswith('.md'):
+                        self.reference_stats[file_path]['outgoing'].add(resolved_link)
+                        # 检查文件是否存在
+                        if resolved_link not in self.file_scanner.files:
+                            self.invalid_links.append((file_path, (link, resolved_link, is_image, None)))
+        except Exception as e:
+            print(f"Error reading file {file_path}: {e}")
+    
+    def _read_file(self, file_path: str) -> Optional[str]:
+        """读取文件内容"""
+        try:
+            full_path = os.path.join(self.root_dir, file_path)
+            with open(full_path, 'r', encoding='utf-8') as f:
+                return f.read()
+        except Exception as e:
+            print(f"Error reading file {file_path}: {e}")
+            return None
     
     def print_report(self, verbosity: int = 0, no_color: bool = False) -> None:
         """打印检查报告"""
@@ -151,9 +185,9 @@ class ReferenceChecker:
         if verbosity >= 2:
             print("\n引用统计:")
             for file, stats in sorted(self.reference_stats.items()):
-                if stats['incoming'] > 0 or stats['outgoing']:
+                if stats['incoming'] or stats['outgoing']:
                     print(f"\n  {file}:")
-                    print(f"  - 被引用次数: {stats['incoming']}")
+                    print(f"  - 被引用次数: {len(stats['incoming'])}")
                     print(f"  - 引用其他文件数: {len(stats['outgoing'])}")
                     if stats['outgoing']:
                         print("  - 引用的文件:")
@@ -162,7 +196,7 @@ class ReferenceChecker:
     
     @staticmethod
     def normalize_path(path: str) -> str:
-        """规范化路径，处理路径分隔符"""
+        """规范化路径，处理���径分隔符"""
         # 统一使用正斜杠
         path = path.replace('\\', '/')
         # 移除开头的 ./

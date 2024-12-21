@@ -27,86 +27,30 @@ class ReferenceParser:
         self.ref_def_pattern = re.compile(r'^\s*\[([^\]]+)\]:\s*(\S+)(?:\s+"[^"]*")?$')
 
     @staticmethod
-    def find_references_in_text(text: str, line_offset: int = 1) -> List[Tuple[str, int, bool]]:
-        """从文本中查找所有引用
+    def find_references_in_text(text: str, line_num: int) -> List[Tuple[str, int, int, str, bool]]:
+        """在文本中查找引用。
         
         Args:
-            text: 要解析的文本内容
-            line_offset: 行号偏移量，用于调整返回的行号
+            text: 要查找的文本
+            line_num: 行号
             
         Returns:
-            List[Tuple[str, int, bool]]: 引用列表，每个元素为 (引用文本, 行号, 是否为图片引用)
+            引用列表，每个元素为 (引用路径, 行号, 列号, 原始文本, 是否为图片引用) 的元组
         """
         references = []
         
-        # 跳过代码块内的内容
-        in_code_block = False
-        current_line = line_offset
+        # 匹配图片引用: ![[image.png]] 或 ![[image.png|alt text]]
+        for match in re.finditer(r'!\[\[(.*?)(?:\|.*?)?\]\]', text):
+            link = match.group(1)
+            col = match.start()
+            references.append((link, line_num, col, text, True))
         
-        # 分行处理以跟踪行号
-        lines = text.split('\n')
-        for line in lines:
-            line = line.strip()
-            
-            # 检查代码块标记
-            if line.startswith('```'):
-                in_code_block = not in_code_block
-                current_line += 1
-                continue
-            
-            # 在代码块内则跳过
-            if in_code_block:
-                current_line += 1
-                continue
-                
-            # 跳过表格语法
-            if line.startswith('|') and line.endswith('|'):
-                current_line += 1
-                continue
-                
-            # 跳过引用块
-            if line.startswith('>'):
-                current_line += 1
-                continue
-                
-            # 处理行内代码和HTML标签
-            text_to_process = line
-            
-            # 移除HTML标签内容
-            text_to_process = re.sub(r'<[^>]+>.*?</[^>]+>', '', text_to_process)
-            
-            # 处理行内代码
-            parts = text_to_process.split('`')
-            if len(parts) % 2 == 0:  # 如果有未闭合的行内代码，跳过整行
-                current_line += 1
-                continue
-                
-            # 只处理不在行内代码中的部分
-            final_text = ''
-            for i, part in enumerate(parts):
-                if i % 2 == 0:  # 不在行内代码中的部分
-                    final_text += part
-            
-            # 收集所有引用及其位置
-            refs_with_pos = []
-            
-            # 查找图片引用 ![[...]]
-            for match in re.finditer(r'!\[\[(.*?)(?:\|.*?)?\]\]', final_text):
-                ref = match.group(1).strip()
-                if ref and not ref.startswith(('http://', 'https://', 'ftp://')):
-                    refs_with_pos.append((ref, match.start(), True))
-            
-            # 查找普通引用 [[...]]
-            for match in re.finditer(r'(?<!!)\[\[(.*?)(?:\|.*?)?\]\]', final_text):
-                ref = match.group(1).strip()
-                if ref and not ref.startswith(('http://', 'https://', 'ftp://')):
-                    refs_with_pos.append((ref, match.start(), False))
-            
-            # 按位置排序并添加到结果中
-            refs_with_pos.sort(key=lambda x: x[1])
-            references.extend((ref, current_line, is_image) for ref, _, is_image in refs_with_pos)
-            
-            current_line += 1
+        # 匹配普通引用: [[doc.md]] 或 [[doc.md|alias]]
+        # 不匹配以!开头的图片引用
+        for match in re.finditer(r'(?<!!)\[\[(.*?)(?:\|.*?)?\]\]', text):
+            link = match.group(1)
+            col = match.start()
+            references.append((link, line_num, col, text, False))
         
         return references
 
@@ -214,3 +158,85 @@ class ReferenceParser:
             url = normalize_path(url)
         
         return url
+
+    def parse_references(self, content: str) -> List[Tuple[str, bool]]:
+        """解析文本中的引用。
+        
+        Args:
+            content: 要解析的文本内容
+            
+        Returns:
+            引用列表，每个元素为 (引用路径, 是否为图片引用) 的元组
+        """
+        references = []
+        lines = content.split('\n')
+        in_code_block = False
+        
+        for line_num, line in enumerate(lines, 1):
+            # 检查是否进入或离开代码块
+            if line.strip().startswith('```'):
+                in_code_block = not in_code_block
+                continue
+            
+            # 在代码块内跳过处理
+            if in_code_block:
+                continue
+            
+            # 解析当前行的引用
+            line_refs = self.find_references_in_text(line, line_num)
+            for link, _, _, _, is_image in line_refs:
+                # 处理别名
+                if '|' in link:
+                    link = link.split('|')[0].strip()
+                references.append((link, is_image))
+        
+        return references
+
+    def _remove_code_blocks(self, content: str) -> str:
+        """移除代码块中的内容，避免解析代码块中的引用
+
+        Args:
+            content: 原始内容
+
+        Returns:
+            str: 移除代码块后的内容
+        """
+        # 移除行内代码
+        content = re.sub(r'`[^`]+`', '', content)
+        
+        # 移除围栏代码块
+        content = re.sub(r'```[^`]*```', '', content, flags=re.DOTALL)
+        
+        return content
+
+    def _parse_image_references(self, content: str) -> Set[str]:
+        """解析图片引用
+
+        Args:
+            content: 文档内容
+
+        Returns:
+            Set[str]: 图片引用集合
+        """
+        refs = set()
+        for match in re.finditer(r'!\[\[(.*?)(?:\|.*?)?\]\]', content):
+            ref = match.group(1).strip()
+            if ref and not ref.startswith(('http://', 'https://', 'ftp://')):
+                refs.add(ref)
+        return refs
+
+    def _parse_doc_references(self, content: str) -> Set[str]:
+        """解析文档引用
+
+        Args:
+            content: 文档内容
+
+        Returns:
+            Set[str]: 文档引用集合
+        """
+        refs = set()
+        for match in re.finditer(r'(?<!!)\[\[(.*?)(?:\|.*?)?\]\]', content):
+            ref = match.group(1).strip()
+            if ref and not ref.startswith(('http://', 'https://', 'ftp://')):
+                refs.add(ref)
+        return refs

@@ -7,6 +7,7 @@ from typing import Dict, List, Set, Tuple
 from .file_scanner import FileScanner
 from .reference_parser import ReferenceParser
 from .utils import is_markdown_file, normalize_path
+import argparse
 
 class ReferenceChecker:
     """Markdown 引用检查器"""
@@ -119,3 +120,12 @@ class ReferenceChecker:
             'files_with_broken_refs': len(self.broken_references),
             'unused_images': len(self.unused_files)
         } 
+
+def parse_args():
+    """解析命令行参数"""
+    parser = argparse.ArgumentParser(description='Markdown 引用检查工具')
+    parser.add_argument('--dir', help='要检查的目录路径', default='.')
+    parser.add_argument('-v', '--verbose', help='输出详细信息', action='store_true')
+    parser.add_argument('--no-color', help='禁用彩色输出', action='store_true')
+    parser.add_argument('--ignore', help='忽略模式', action='append')
+    return parser.parse_args()
