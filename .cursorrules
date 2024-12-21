@@ -8,6 +8,17 @@
   - docs/ - Documentation
   - config/ - Configuration files
 
+## Development Methodology
+
+- Follow Test-Driven Development (TDD) principles:
+  - Write tests first before implementation
+  - Red-Green-Refactor cycle
+  - Keep tests focused and meaningful
+- Embrace refactoring when needed:
+  - Improve code structure without changing behavior
+  - Use automated tests to verify refactoring
+  - Follow SOLID principles during refactoring
+
 ## Code Quality
 
 - Use type annotations for all functions and classes
@@ -20,6 +31,7 @@
 - Use environment variables for configuration
 - Implement robust error handling and logging
 - Follow code style with Ruff
+- Use appropriate libraries when necessary
 
 ## Testing
 
@@ -52,3 +64,4 @@
 - Add comprehensive docstrings
 - Maintain detailed README files
 - Preserve existing comments
+- Update related comments when modifying code
