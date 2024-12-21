@@ -2,66 +2,67 @@
 Tests for utility functions
 """
 
-import pytest
-from src.checker.utils import normalize_path, is_image_file, is_markdown_file
+import os
+from src.utils import normalize_path, get_file_name, get_directory_name
 
 def test_normalize_path():
     """Test path normalization"""
-    test_cases = [
-        ('path/to/file', 'path/to/file'),
-        ('path\\to\\file', 'path/to/file'),
-        ('path/../file', 'path/../file'),
-        ('path/./file', 'path/./file'),
-    ]
+    # Test forward slash conversion
+    assert normalize_path('path\\to\\file') == 'path/to/file'
+    assert normalize_path('path/to/file') == 'path/to/file'
     
-    for input_path, expected in test_cases:
-        assert normalize_path(input_path) == expected
+    # Test multiple slash handling
+    assert normalize_path('path//to///file') == 'path/to/file'
+    assert normalize_path('path\\\\to\\\\\\file') == 'path/to/file'
+    
+    # Test mixed slash handling
+    assert normalize_path('path\\to/file') == 'path/to/file'
+    assert normalize_path('path/to\\file') == 'path/to/file'
+    
+    # Test empty and None inputs
+    assert normalize_path('') == ''
+    assert normalize_path(None) == ''
 
-@pytest.mark.parametrize("filename", [
-    'image.png',
-    'photo.jpg',
-    'photo.jpeg',
-    'animation.gif',
-    'vector.svg',
-    'image.webp',
-    'IMAGE.PNG',
-    'PHOTO.JPG',
-])
-def test_is_image_file_valid(filename):
-    """Test valid image file detection"""
-    assert is_image_file(filename)
+def test_get_file_name():
+    """Test file name extraction"""
+    # Test basic file name extraction
+    assert get_file_name('path/to/file.txt') == 'file'
+    assert get_file_name('file.txt') == 'file'
+    
+    # Test files without extension
+    assert get_file_name('path/to/file') == 'file'
+    assert get_file_name('file') == 'file'
+    
+    # Test files with multiple dots
+    assert get_file_name('path/to/file.name.txt') == 'file.name'
+    assert get_file_name('file.name.txt') == 'file.name'
+    
+    # Test empty and None inputs
+    assert get_file_name('') == ''
+    assert get_file_name(None) == ''
+    
+    # Test special cases
+    assert get_file_name('.hidden') == '.hidden'
+    assert get_file_name('path/to/.hidden') == '.hidden'
 
-@pytest.mark.parametrize("filename", [
-    'document.md',
-    'script.py',
-    'image.txt',
-    'photo',
-    '.png',
-    'image.doc',
-])
-def test_is_image_file_invalid(filename):
-    """Test invalid image file detection"""
-    assert not is_image_file(filename)
-
-@pytest.mark.parametrize("filename", [
-    'document.md',
-    'README.md',
-    'notes.MD',
-    'doc.markdown',
-    'CAPS.MD',
-])
-def test_is_markdown_file_valid(filename):
-    """Test valid Markdown file detection"""
-    assert is_markdown_file(filename)
-
-@pytest.mark.parametrize("filename", [
-    'document.txt',
-    'script.py',
-    'doc',
-    '.md',
-    'markdown',
-    'md.doc',
-])
-def test_is_markdown_file_invalid(filename):
-    """Test invalid Markdown file detection"""
-    assert not is_markdown_file(filename) 
+def test_get_directory_name():
+    """Test directory name extraction"""
+    # Test basic directory name extraction
+    assert get_directory_name('path/to/file.txt') == 'path/to'
+    assert get_directory_name('path/to/file') == 'path/to'
+    
+    # Test root directory
+    assert get_directory_name('file.txt') == ''
+    assert get_directory_name('file') == ''
+    
+    # Test directory paths
+    assert get_directory_name('path/to/dir/') == 'path/to/dir'
+    assert get_directory_name('path/to/dir') == 'path/to'
+    
+    # Test empty and None inputs
+    assert get_directory_name('') == ''
+    assert get_directory_name(None) == ''
+    
+    # Test special cases
+    assert get_directory_name('/path/to/file') == '/path/to'
+    assert get_directory_name('C:/path/to/file') == 'C:/path/to' 

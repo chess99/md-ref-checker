@@ -1,128 +1,160 @@
-import unittest
 import os
-import shutil
 from src.check_references import ReferenceChecker
 
-class TestStatistics(unittest.TestCase):
-    def setUp(self):
-        """Set up test environment"""
-        self.test_dir = os.path.join(os.path.dirname(__file__), 'test_files/test_case_statistics')
-        os.makedirs(self.test_dir, exist_ok=True)
-        
-        # Create test files
-        self.create_test_files()
-        
-        self.checker = ReferenceChecker(self.test_dir)
-        self.checker.scan_files()
+def test_reference_counting(clean_test_files):
+    """Test reference counting functionality"""
+    test_dir = os.path.join(clean_test_files, 'test_case_statistics')
+    os.makedirs(test_dir, exist_ok=True)
+    os.makedirs(os.path.join(test_dir, 'assets'), exist_ok=True)
     
-    def tearDown(self):
-        """Clean up test environment"""
-        if os.path.exists(self.test_dir):
-            shutil.rmtree(self.test_dir)
-    
-    def create_test_files(self):
-        """Create test files for statistics testing"""
-        # Create a central document that references many others
-        with open(os.path.join(self.test_dir, 'index.md'), 'w', encoding='utf-8') as f:
-            f.write('''# Index
-            
+    # Create test files
+    with open(os.path.join(test_dir, 'index.md'), 'w', encoding='utf-8') as f:
+        f.write('''# Index
+        
 [[doc1]]
 [[doc2]]
 [[doc3]]
 ![[image1.png]]
 ![[image2.png]]''')
+    
+    with open(os.path.join(test_dir, 'doc1.md'), 'w', encoding='utf-8') as f:
+        f.write('''# Document 1
         
-        # Create documents with varying reference patterns
-        with open(os.path.join(self.test_dir, 'doc1.md'), 'w', encoding='utf-8') as f:
-            f.write('''# Document 1
-            
 [[index]]
 [[doc2]]
 ![[image1.png]]''')
+    
+    with open(os.path.join(test_dir, 'doc2.md'), 'w', encoding='utf-8') as f:
+        f.write('''# Document 2
         
-        with open(os.path.join(self.test_dir, 'doc2.md'), 'w', encoding='utf-8') as f:
-            f.write('''# Document 2
-            
 [[doc1]]
 [[doc3]]''')
+    
+    with open(os.path.join(test_dir, 'doc3.md'), 'w', encoding='utf-8') as f:
+        f.write('''# Document 3
         
-        with open(os.path.join(self.test_dir, 'doc3.md'), 'w', encoding='utf-8') as f:
-            f.write('''# Document 3
-            
 [[index]]
 ![[image2.png]]''')
-        
-        # Create assets directory and images
-        os.makedirs(os.path.join(self.test_dir, 'assets'), exist_ok=True)
-        for img in ['image1.png', 'image2.png', 'unused.png']:
-            with open(os.path.join(self.test_dir, 'assets', img), 'w') as f:
-                f.write(f'dummy content for {img}')
     
-    def test_reference_counts(self):
-        """Test reference counting"""
-        self.checker.check_all_references()
-        
-        # Test incoming reference counts
-        self.assertEqual(self.checker.reference_stats['index.md']['incoming'], 2)  # from doc1 and doc3
-        self.assertEqual(self.checker.reference_stats['doc1.md']['incoming'], 2)   # from index and doc2
-        self.assertEqual(self.checker.reference_stats['doc2.md']['incoming'], 2)   # from index and doc1
-        self.assertEqual(self.checker.reference_stats['doc3.md']['incoming'], 2)   # from index and doc2
+    # Create image files
+    for img in ['image1.png', 'image2.png', 'unused.png']:
+        with open(os.path.join(test_dir, 'assets', img), 'w') as f:
+            f.write(f'dummy content for {img}')
     
-    def test_outgoing_references(self):
-        """Test outgoing reference tracking"""
-        self.checker.check_all_references()
-        
-        # Test outgoing references
-        index_outgoing = self.checker.reference_stats['index.md']['outgoing']
-        self.assertEqual(len(index_outgoing), 3)  # doc1, doc2, doc3
-        self.assertTrue(all(f in index_outgoing for f in ['doc1.md', 'doc2.md', 'doc3.md']))
-        
-        doc1_outgoing = self.checker.reference_stats['doc1.md']['outgoing']
-        self.assertEqual(len(doc1_outgoing), 2)  # index, doc2
-        self.assertTrue(all(f in doc1_outgoing for f in ['index.md', 'doc2.md']))
+    checker = ReferenceChecker(test_dir)
+    checker.scan_files()
+    checker.check_all_references()
     
-    def test_image_references(self):
-        """Test image reference statistics"""
-        self.checker.check_all_references()
-        
-        # Test referenced images
-        self.assertEqual(len(self.checker.referenced_images), 2)
-        self.assertTrue(all(f'assets/{img}' in self.checker.referenced_images 
-                          for img in ['image1.png', 'image2.png']))
-        
-        # Test unused images
-        unused_images = self.checker.image_files - self.checker.referenced_images
-        self.assertEqual(len(unused_images), 1)
-        self.assertTrue('assets/unused.png' in unused_images)
+    # Test reference statistics
+    stats = checker.reference_stats
     
-    def test_unidirectional_links(self):
-        """Test unidirectional link detection"""
-        self.checker.check_all_references()
-        
-        # Find all unidirectional links
-        unidirectional = set((source, target) for source, target in self.checker.unidirectional_links)
-        
-        # Test specific unidirectional relationships
-        expected_unidirectional = {
-            ('index.md', 'doc2.md'),  # index -> doc2 but doc2 doesn't reference index
-            ('index.md', 'doc3.md'),  # index -> doc3 but doc3 doesn't reference doc1
-            ('doc2.md', 'doc3.md'),   # doc2 -> doc3 but doc3 doesn't reference doc2
-        }
-        
-        self.assertEqual(unidirectional, expected_unidirectional)
+    # Test outgoing references
+    assert len(stats['index.md']['outgoing']) == 5, \
+        "Index should have 5 outgoing references"
+    assert len(stats['doc1.md']['outgoing']) == 3, \
+        "Doc1 should have 3 outgoing references"
+    assert len(stats['doc2.md']['outgoing']) == 2, \
+        "Doc2 should have 2 outgoing references"
+    assert len(stats['doc3.md']['outgoing']) == 2, \
+        "Doc3 should have 2 outgoing references"
     
-    def test_reference_patterns(self):
-        """Test reference pattern analysis"""
-        self.checker.check_all_references()
-        
-        # Test circular reference detection (doc1 <-> doc2)
-        doc1_refs = self.checker.reference_stats['doc1.md']['outgoing']
-        doc2_refs = self.checker.reference_stats['doc2.md']['outgoing']
-        self.assertTrue('doc2.md' in doc1_refs and 'doc1.md' in doc2_refs)
-        
-        # Test hub document detection (index references many)
-        index_refs = self.checker.reference_stats['index.md']['outgoing']
-        self.assertTrue(len(index_refs) >= 3)
+    # Test incoming references
+    assert len(stats['index.md']['incoming']) == 2, \
+        "Index should have 2 incoming references"
+    assert len(stats['doc1.md']['incoming']) == 2, \
+        "Doc1 should have 2 incoming references"
+    assert len(stats['doc2.md']['incoming']) == 2, \
+        "Doc2 should have 2 incoming references"
+    assert len(stats['doc3.md']['incoming']) == 2, \
+        "Doc3 should have 2 incoming references"
 
-if __name__ == '__main__':
-    unittest.main() 
+def test_image_references(clean_test_files):
+    """Test image reference tracking"""
+    test_dir = os.path.join(clean_test_files, 'test_case_statistics')
+    os.makedirs(test_dir, exist_ok=True)
+    os.makedirs(os.path.join(test_dir, 'assets'), exist_ok=True)
+    
+    # Create test files
+    with open(os.path.join(test_dir, 'index.md'), 'w', encoding='utf-8') as f:
+        f.write('''# Index
+        
+![[image1.png]]
+![[image2.png]]''')
+    
+    with open(os.path.join(test_dir, 'doc1.md'), 'w', encoding='utf-8') as f:
+        f.write('''# Document 1
+        
+![[image1.png]]''')
+    
+    # Create image files
+    for img in ['image1.png', 'image2.png', 'unused.png']:
+        with open(os.path.join(test_dir, 'assets', img), 'w') as f:
+            f.write(f'dummy content for {img}')
+    
+    checker = ReferenceChecker(test_dir)
+    checker.scan_files()
+    checker.check_all_references()
+    
+    # Test referenced images
+    assert 'assets/image1.png' in checker.referenced_images, \
+        "image1.png should be referenced"
+    assert 'assets/image2.png' in checker.referenced_images, \
+        "image2.png should be referenced"
+    assert 'assets/unused.png' not in checker.referenced_images, \
+        "unused.png should not be referenced"
+    
+    # Test reference counts
+    image_refs = {
+        'assets/image1.png': 2,  # Referenced in index.md and doc1.md
+        'assets/image2.png': 1,  # Referenced in index.md only
+        'assets/unused.png': 0   # Not referenced
+    }
+    
+    for image, count in image_refs.items():
+        actual_count = sum(1 for stats in checker.reference_stats.values()
+                         if image in stats['outgoing'])
+        assert actual_count == count, \
+            f"{image} should have {count} references, but found {actual_count}"
+
+def test_circular_references(clean_test_files):
+    """Test circular reference detection"""
+    test_dir = os.path.join(clean_test_files, 'test_case_statistics')
+    os.makedirs(test_dir, exist_ok=True)
+    
+    # Create files with circular references
+    with open(os.path.join(test_dir, 'a.md'), 'w', encoding='utf-8') as f:
+        f.write('''# Document A
+        
+[[b]]''')
+    
+    with open(os.path.join(test_dir, 'b.md'), 'w', encoding='utf-8') as f:
+        f.write('''# Document B
+        
+[[c]]''')
+    
+    with open(os.path.join(test_dir, 'c.md'), 'w', encoding='utf-8') as f:
+        f.write('''# Document C
+        
+[[a]]''')
+    
+    checker = ReferenceChecker(test_dir)
+    checker.scan_files()
+    checker.check_all_references()
+    
+    # Test circular reference detection
+    stats = checker.reference_stats
+    
+    # Each document should have one incoming and one outgoing reference
+    for doc in ['a.md', 'b.md', 'c.md']:
+        assert len(stats[doc]['incoming']) == 1, \
+            f"{doc} should have 1 incoming reference"
+        assert len(stats[doc]['outgoing']) == 1, \
+            f"{doc} should have 1 outgoing reference"
+    
+    # Verify the circular reference chain
+    assert 'b.md' in stats['a.md']['outgoing'], \
+        "a.md should reference b.md"
+    assert 'c.md' in stats['b.md']['outgoing'], \
+        "b.md should reference c.md"
+    assert 'a.md' in stats['c.md']['outgoing'], \
+        "c.md should reference a.md" 

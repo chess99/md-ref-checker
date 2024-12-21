@@ -9,19 +9,24 @@ def test_files_root():
 
 @pytest.fixture(autouse=True)
 def clean_test_files(request, test_files_root):
-    """Clean up test files before and after each test"""
+    """Clean up temporary test files before and after each test"""
+    # Get the test function name
+    test_name = request.node.name
+    # Create a temporary directory specific to this test
+    temp_test_dir = os.path.join(test_files_root, f'temp_{test_name}')
+    
     # Clean up before test
-    if os.path.exists(test_files_root):
-        shutil.rmtree(test_files_root)
-    os.makedirs(test_files_root)
+    if os.path.exists(temp_test_dir):
+        shutil.rmtree(temp_test_dir)
+    os.makedirs(temp_test_dir)
     
     def cleanup():
         # Clean up after test
-        if os.path.exists(test_files_root):
-            shutil.rmtree(test_files_root)
+        if os.path.exists(temp_test_dir):
+            shutil.rmtree(temp_test_dir)
     
     request.addfinalizer(cleanup)
-    return test_files_root
+    return temp_test_dir
 
 @pytest.fixture
 def temp_dir(test_files_root):

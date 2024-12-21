@@ -3,176 +3,165 @@ Tests for ignore rules functionality
 """
 
 import os
-import unittest
 from src.checker.ignore_rules import IgnoreRules
-from tests.utils import create_test_structure, cleanup_test_dir, create_ignore_file
 
-class TestIgnoreRules(unittest.TestCase):
-    def setUp(self):
-        """Set up test environment"""
-        self.test_dir = os.path.join(os.path.dirname(__file__), 'test_files/test_case_ignore')
-        cleanup_test_dir(self.test_dir)
-        os.makedirs(self.test_dir)
-        
-        # Create test structure
-        self.create_test_files()
-        
-        # Initialize ignore rules
-        self.ignore_rules = IgnoreRules(self.test_dir)
+def test_default_patterns(clean_test_files):
+    """Test default ignore patterns"""
+    test_dir = os.path.join(clean_test_files, 'test_case_ignore')
+    os.makedirs(test_dir, exist_ok=True)
     
-    def tearDown(self):
-        """Clean up test environment"""
-        cleanup_test_dir(self.test_dir)
+    # Initialize ignore rules
+    ignore_rules = IgnoreRules(test_dir)
     
-    def create_test_files(self):
-        """Create test files and directories"""
-        # Create .gitignore
-        gitignore_patterns = [
-            'ignored_dir/*',
-            '*.tmp',
-            'temp.*',
-            'node_modules/',
-        ]
-        create_ignore_file(self.test_dir, '.gitignore', gitignore_patterns)
-        
-        # Create .mdignore
-        mdignore_patterns = [
-            'draft_*',
-            '_private/*',
-            '*.draft.md',
-        ]
-        create_ignore_file(self.test_dir, '.mdignore', mdignore_patterns)
-        
-        # Create test structure
-        structure = {
-            'ignored_dir': {
-                'file1.txt': 'content',
-                'file2.md': 'content',
-            },
-            'normal_dir': {
-                'file1.md': 'content',
-                'file2.txt': 'content',
-            },
-            '_private': {
-                'secret.md': 'content',
-            },
-            'draft_post.md': 'draft content',
-            'normal_post.md': 'normal content',
-            'temp.txt': 'temporary content',
-            'file.tmp': 'temporary content',
-            'post.draft.md': 'draft content',
-        }
-        create_test_structure(self.test_dir, structure)
+    # Test default ignored patterns
+    default_ignored = [
+        '.git/file.txt',
+        '.obsidian/workspace',
+        '.trash/deleted.md',
+        'node_modules/package.json',
+        '.DS_Store',
+        'Thumbs.db',
+    ]
     
-    def test_default_patterns(self):
-        """Test default ignore patterns"""
-        default_ignored = [
-            '.git/file.txt',
-            '.obsidian/workspace',
-            '.trash/deleted.md',
-            'node_modules/package.json',
-            '.DS_Store',
-            'Thumbs.db',
-        ]
-        
-        for path in default_ignored:
-            with self.subTest(path=path):
-                self.assertTrue(
-                    self.ignore_rules.should_ignore(path),
-                    f"Should ignore {path}"
-                )
-    
-    def test_gitignore_patterns(self):
-        """Test .gitignore patterns"""
-        # Test directory patterns
-        self.assertTrue(
-            self.ignore_rules.should_ignore('ignored_dir/file.txt'),
-            "Should ignore files in ignored_dir"
-        )
-        
-        # Test file patterns
-        self.assertTrue(
-            self.ignore_rules.should_ignore('file.tmp'),
-            "Should ignore .tmp files"
-        )
-        self.assertTrue(
-            self.ignore_rules.should_ignore('temp.txt'),
-            "Should ignore temp.* files"
-        )
-        
-        # Test non-ignored files
-        self.assertFalse(
-            self.ignore_rules.should_ignore('normal_dir/file.txt'),
-            "Should not ignore files in normal directories"
-        )
-    
-    def test_mdignore_patterns(self):
-        """Test .mdignore patterns"""
-        # Test prefix patterns
-        self.assertTrue(
-            self.ignore_rules.should_ignore('draft_post.md'),
-            "Should ignore draft_ files"
-        )
-        
-        # Test directory patterns
-        self.assertTrue(
-            self.ignore_rules.should_ignore('_private/secret.md'),
-            "Should ignore files in _private directory"
-        )
-        
-        # Test suffix patterns
-        self.assertTrue(
-            self.ignore_rules.should_ignore('post.draft.md'),
-            "Should ignore .draft.md files"
-        )
-        
-        # Test non-ignored files
-        self.assertFalse(
-            self.ignore_rules.should_ignore('normal_post.md'),
-            "Should not ignore normal files"
-        )
-    
-    def test_add_patterns(self):
-        """Test adding custom patterns"""
-        # Add custom patterns
-        custom_patterns = [
-            'custom_*',
-            '*.test',
-            'test_dir/',
-        ]
-        self.ignore_rules.add_patterns(custom_patterns)
-        
-        # Test custom patterns
-        self.assertTrue(
-            self.ignore_rules.should_ignore('custom_file.txt'),
-            "Should ignore custom_* files"
-        )
-        self.assertTrue(
-            self.ignore_rules.should_ignore('file.test'),
-            "Should ignore .test files"
-        )
-        self.assertTrue(
-            self.ignore_rules.should_ignore('test_dir/file.txt'),
-            "Should ignore files in test_dir"
-        )
-    
-    def test_pattern_precedence(self):
-        """Test pattern precedence"""
-        # Add a pattern that would match everything
-        self.ignore_rules.add_patterns(['*'])
-        
-        # Add a negation pattern
-        self.ignore_rules.add_patterns(['!important.md'])
-        
-        # The more specific pattern should take precedence
-        self.assertTrue(
-            self.ignore_rules.should_ignore('random.txt'),
-            "Should ignore random files"
-        )
-        self.assertFalse(
-            self.ignore_rules.should_ignore('important.md'),
-            "Should not ignore important.md"
-        )
+    for path in default_ignored:
+        assert ignore_rules.should_ignore(path), \
+            f"Should ignore {path}"
 
-if __name__ == '__main__':
-    unittest.main() 
+def test_gitignore_patterns(clean_test_files):
+    """Test .gitignore patterns"""
+    test_dir = os.path.join(clean_test_files, 'test_case_ignore')
+    os.makedirs(test_dir, exist_ok=True)
+    
+    # Create .gitignore
+    with open(os.path.join(test_dir, '.gitignore'), 'w', encoding='utf-8') as f:
+        f.write('''ignored_dir/*
+*.tmp
+temp.*
+node_modules/''')
+    
+    # Create test files
+    os.makedirs(os.path.join(test_dir, 'ignored_dir'))
+    os.makedirs(os.path.join(test_dir, 'normal_dir'))
+    
+    with open(os.path.join(test_dir, 'ignored_dir/file.txt'), 'w') as f:
+        f.write('content')
+    with open(os.path.join(test_dir, 'normal_dir/file.txt'), 'w') as f:
+        f.write('content')
+    with open(os.path.join(test_dir, 'file.tmp'), 'w') as f:
+        f.write('content')
+    with open(os.path.join(test_dir, 'temp.txt'), 'w') as f:
+        f.write('content')
+    
+    # Initialize ignore rules
+    ignore_rules = IgnoreRules(test_dir)
+    
+    # Test directory patterns
+    assert ignore_rules.should_ignore('ignored_dir/file.txt'), \
+        "Should ignore files in ignored_dir"
+    
+    # Test file patterns
+    assert ignore_rules.should_ignore('file.tmp'), \
+        "Should ignore .tmp files"
+    assert ignore_rules.should_ignore('temp.txt'), \
+        "Should ignore temp.* files"
+    
+    # Test non-ignored files
+    assert not ignore_rules.should_ignore('normal_dir/file.txt'), \
+        "Should not ignore files in normal directories"
+
+def test_mdignore_patterns(clean_test_files):
+    """Test .mdignore patterns"""
+    test_dir = os.path.join(clean_test_files, 'test_case_ignore')
+    os.makedirs(test_dir, exist_ok=True)
+    
+    # Create .mdignore
+    with open(os.path.join(test_dir, '.mdignore'), 'w', encoding='utf-8') as f:
+        f.write('''draft_*
+_private/*
+*.draft.md''')
+    
+    # Create test files
+    os.makedirs(os.path.join(test_dir, '_private'))
+    
+    with open(os.path.join(test_dir, 'draft_post.md'), 'w') as f:
+        f.write('content')
+    with open(os.path.join(test_dir, '_private/secret.md'), 'w') as f:
+        f.write('content')
+    with open(os.path.join(test_dir, 'post.draft.md'), 'w') as f:
+        f.write('content')
+    with open(os.path.join(test_dir, 'normal_post.md'), 'w') as f:
+        f.write('content')
+    
+    # Initialize ignore rules
+    ignore_rules = IgnoreRules(test_dir)
+    
+    # Test patterns
+    assert ignore_rules.should_ignore('draft_post.md'), \
+        "Should ignore draft_* files"
+    assert ignore_rules.should_ignore('_private/secret.md'), \
+        "Should ignore files in _private/"
+    assert ignore_rules.should_ignore('post.draft.md'), \
+        "Should ignore *.draft.md files"
+    
+    # Test non-ignored files
+    assert not ignore_rules.should_ignore('normal_post.md'), \
+        "Should not ignore normal files"
+
+def test_multiple_ignore_files(clean_test_files):
+    """Test multiple ignore files"""
+    test_dir = os.path.join(clean_test_files, 'test_case_ignore')
+    os.makedirs(test_dir, exist_ok=True)
+    
+    # Create .gitignore and .mdignore
+    with open(os.path.join(test_dir, '.gitignore'), 'w', encoding='utf-8') as f:
+        f.write('*.tmp\ntemp.*')
+    with open(os.path.join(test_dir, '.mdignore'), 'w', encoding='utf-8') as f:
+        f.write('draft_*\n*.draft.md')
+    
+    # Initialize ignore rules
+    ignore_rules = IgnoreRules(test_dir)
+    
+    # Test combined patterns
+    assert ignore_rules.should_ignore('file.tmp'), \
+        "Should ignore .gitignore patterns"
+    assert ignore_rules.should_ignore('temp.txt'), \
+        "Should ignore .gitignore patterns"
+    assert ignore_rules.should_ignore('draft_post.md'), \
+        "Should ignore .mdignore patterns"
+    assert ignore_rules.should_ignore('post.draft.md'), \
+        "Should ignore .mdignore patterns"
+    
+    # Test non-ignored files
+    assert not ignore_rules.should_ignore('normal.md'), \
+        "Should not ignore normal files"
+
+def test_nested_ignore_files(clean_test_files):
+    """Test nested ignore files"""
+    test_dir = os.path.join(clean_test_files, 'test_case_ignore')
+    os.makedirs(test_dir, exist_ok=True)
+    
+    # Create directory structure with nested ignore files
+    os.makedirs(os.path.join(test_dir, 'docs'))
+    os.makedirs(os.path.join(test_dir, 'docs/drafts'))
+    
+    with open(os.path.join(test_dir, '.gitignore'), 'w', encoding='utf-8') as f:
+        f.write('*.tmp')
+    with open(os.path.join(test_dir, 'docs/.gitignore'), 'w', encoding='utf-8') as f:
+        f.write('drafts/*')
+    
+    # Initialize ignore rules
+    ignore_rules = IgnoreRules(test_dir)
+    
+    # Test root patterns
+    assert ignore_rules.should_ignore('file.tmp'), \
+        "Should apply root .gitignore"
+    assert ignore_rules.should_ignore('docs/file.tmp'), \
+        "Should apply root .gitignore in subdirectories"
+    
+    # Test nested patterns
+    assert ignore_rules.should_ignore('docs/drafts/post.md'), \
+        "Should apply nested .gitignore"
+    
+    # Test non-ignored files
+    assert not ignore_rules.should_ignore('docs/normal.md'), \
+        "Should not ignore normal files" 

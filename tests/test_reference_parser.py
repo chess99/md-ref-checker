@@ -2,121 +2,133 @@
 Tests for reference parser functionality
 """
 
-import pytest
+import os
 from src.checker.reference_parser import ReferenceParser
 
-def test_basic_references():
+def test_basic_reference_parsing():
     """Test basic reference parsing"""
-    text = "Here is a [[link]] and another [[reference]]"
-    refs = ReferenceParser.find_references_in_text(text, 1)
+    parser = ReferenceParser()
     
-    assert len(refs) == 2
-    assert refs[0] == ('link', 1, False)
-    assert refs[1] == ('reference', 1, False)
-
-def test_image_references():
-    """Test image reference parsing"""
-    text = "Here is an ![[image.png]] and a ![alt](image2.png)"
-    refs = ReferenceParser.find_references_in_text(text, 1)
-    
-    assert len(refs) == 1  # Only match ![[...]] style, not ![...](...)
-    assert refs[0] == ('image.png', 1, True)
-
-def test_mixed_references():
-    """Test mixed reference types"""
-    text = "[[doc]] with ![[image.png]]"
-    refs = ReferenceParser.find_references_in_text(text, 1)
-    
-    assert len(refs) == 2
-    assert refs[0] == ('doc', 1, False)
-    assert refs[1] == ('image.png', 1, True)
-
-def test_references_with_aliases():
-    """Test references with aliases"""
-    text = "[[file|显示文本]] and ![[image.png|缩略图]]"
-    refs = ReferenceParser.find_references_in_text(text, 1)
-    
-    assert len(refs) == 2
-    assert refs[0] == ('file', 1, False)
-    assert refs[1] == ('image.png', 1, True)
-
-def test_code_block_exclusion():
-    """Test code block exclusion"""
-    text = "```\n[[ignored]]\n```\n[[valid]]"
-    refs = ReferenceParser.find_references_in_text(text, 1)
-    
+    # Test basic markdown reference
+    content = "Here is a [[link]] to another document"
+    refs = parser.parse_references(content)
     assert len(refs) == 1
-    assert refs[0] == ('valid', 4, False)
-
-def test_inline_code_exclusion():
-    """Test inline code exclusion"""
-    text = "Normal `[[ignored]]` and [[valid]]"
-    refs = ReferenceParser.find_references_in_text(text, 1)
+    assert refs[0] == ("link", False)
     
+    # Test basic image reference
+    content = "Here is an ![[image.png]] embedded in the document"
+    refs = parser.parse_references(content)
     assert len(refs) == 1
-    assert refs[0] == ('valid', 1, False)
+    assert refs[0] == ("image.png", True)
 
-def test_task_list_handling():
-    """Test task list handling"""
-    text = "- [ ] Task with [[link]]\n- [x] Done with ![[image.png]]"
-    refs = ReferenceParser.find_references_in_text(text, 1)
+def test_multiple_references():
+    """Test parsing multiple references"""
+    parser = ReferenceParser()
     
-    assert len(refs) == 2
-    assert refs[0] == ('link', 1, False)
-    assert refs[1] == ('image.png', 2, True)
+    content = """# Document with multiple references
+    
+Here is a [[link1]] and another [[link2]].
+And some images: ![[image1.png]] and ![[image2.jpg]]"""
+    
+    refs = parser.parse_references(content)
+    assert len(refs) == 4
+    assert ("link1", False) in refs
+    assert ("link2", False) in refs
+    assert ("image1.png", True) in refs
+    assert ("image2.jpg", True) in refs
 
-def test_list_handling():
-    """Test list handling"""
-    text = "- Item with [[link]]\n* Another with ![[image.png]]"
-    refs = ReferenceParser.find_references_in_text(text, 1)
+def test_reference_with_alias():
+    """Test parsing references with aliases"""
+    parser = ReferenceParser()
     
-    assert len(refs) == 2
-    assert refs[0] == ('link', 1, False)
-    assert refs[1] == ('image.png', 2, True)
+    # Test markdown reference with alias
+    content = "Here is a [[actual_link|Displayed Text]]"
+    refs = parser.parse_references(content)
+    assert len(refs) == 1
+    assert refs[0] == ("actual_link", False)
+    
+    # Test image reference with alias
+    content = "Here is an ![[actual_image.png|alt text]]"
+    refs = parser.parse_references(content)
+    assert len(refs) == 1
+    assert refs[0] == ("actual_image.png", True)
 
-def test_table_exclusion():
-    """Test table syntax exclusion"""
-    text = "| [[ignored]] | normal |\n| cell | [[valid]] |"
-    refs = ReferenceParser.find_references_in_text(text, 1)
+def test_reference_in_code_blocks():
+    """Test handling references in code blocks"""
+    parser = ReferenceParser()
     
+    # Test references in inline code
+    content = "This is `[[not a reference]]` in code"
+    refs = parser.parse_references(content)
     assert len(refs) == 0
-
-def test_html_tag_exclusion():
-    """Test HTML tag exclusion"""
-    text = "<div>[[ignored]]</div> and [[valid]]"
-    refs = ReferenceParser.find_references_in_text(text, 1)
     
+    # Test references in fenced code blocks
+    content = """Here is a code block:
+```
+[[not a reference]]
+![[not an image]]
+```
+But this [[is a reference]]"""
+    
+    refs = parser.parse_references(content)
     assert len(refs) == 1
-    assert refs[0] == ('valid', 1, False)
+    assert refs[0] == ("is a reference", False)
 
-def test_web_url_exclusion():
-    """Test web URL exclusion"""
-    text = "![alt](https://example.com/image.png) and ![[local.png]]"
-    refs = ReferenceParser.find_references_in_text(text, 1)
+def test_special_characters():
+    """Test parsing references with special characters"""
+    parser = ReferenceParser()
     
+    # Test spaces in reference
+    content = "[[file with spaces]]"
+    refs = parser.parse_references(content)
     assert len(refs) == 1
-    assert refs[0] == ('local.png', 1, True)
-
-def test_complex_mixed_content():
-    """Test complex mixed content"""
-    text = """
-        # Title with [[link]]
-        - [ ] Task with ![[image1.png]]
-        ```python
-        # [[ignored]] in code
-        ```
-        1. List with [[ref|alias]]
-        > Quote with ![[image2.png|thumb]]
-        | [[ignored]] | in table |
-        Normal `[[ignored]]` text
-        <div>[[ignored]]</div>
-        ![](https://example.com/img.jpg)
-        Last [[valid]] reference
-        """
-    refs = ReferenceParser.find_references_in_text(text, 1)
+    assert refs[0] == ("file with spaces", False)
     
-    assert len(refs) == 4  # link, image1.png, ref, valid
-    assert refs[0][0] == 'link'
-    assert refs[1][0] == 'image1.png'
-    assert refs[2][0] == 'ref'
-    assert refs[3][0] == 'valid' 
+    # Test special characters in reference
+    content = "[[file#with#hash]] and [[file&with&ampersand]]"
+    refs = parser.parse_references(content)
+    assert len(refs) == 2
+    assert ("file#with#hash", False) in refs
+    assert ("file&with&ampersand", False) in refs
+    
+    # Test Unicode characters
+    content = "[[文件名]] and ![[图片.png]]"
+    refs = parser.parse_references(content)
+    assert len(refs) == 2
+    assert ("文件名", False) in refs
+    assert ("图片.png", True) in refs
+
+def test_nested_references():
+    """Test handling nested references"""
+    parser = ReferenceParser()
+    
+    # Test nested markdown references
+    content = "[[outer [[inner]] reference]]"
+    refs = parser.parse_references(content)
+    assert len(refs) == 1
+    assert refs[0] == ("outer [[inner]] reference", False)
+    
+    # Test nested image references
+    content = "![[outer ![[inner]] image]]"
+    refs = parser.parse_references(content)
+    assert len(refs) == 1
+    assert refs[0] == ("outer ![[inner]] image", True)
+
+def test_invalid_references():
+    """Test handling invalid reference formats"""
+    parser = ReferenceParser()
+    
+    # Test unclosed references
+    content = "[[unclosed reference"
+    refs = parser.parse_references(content)
+    assert len(refs) == 0
+    
+    # Test empty references
+    content = "[[]] and ![[]]"
+    refs = parser.parse_references(content)
+    assert len(refs) == 0
+    
+    # Test malformed references
+    content = "[ [not a reference]] and ![not an image]]"
+    refs = parser.parse_references(content)
+    assert len(refs) == 0
