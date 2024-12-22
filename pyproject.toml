@@ -36,7 +36,6 @@ dev = [
     "mypy>=1.0.0",
     "pre-commit>=3.5.0",
     "types-click",
-    "pytest-stubs",
 ]
 
 [project.urls]
@@ -78,4 +77,4 @@ ignore = [
 "tests/*" = ["S101"]      # use of assert in tests
 
 [tool.ruff.lint.isort]
-known-first-party = ["md_ref_checker"] 
+known-first-party = ["md_ref_checker"]
