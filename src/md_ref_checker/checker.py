@@ -27,28 +27,28 @@ class ReferenceChecker:
         self.file_refs: Dict[str, Set[Reference]] = {}  # Map of file to its references
         self.image_refs: Set[str] = set()  # Set of all referenced image files
         self.strict_image_refs = strict_image_refs
+        self._resolution_cache: Dict[str, Optional[str]] = (
+            {}
+        )  # Cache for resolved paths
+        self._ref_map: Dict[str, Set[str]] = {}  # Map of file to its referenced files
 
     def _resolve_reference(self, ref: Reference) -> Optional[str]:
         """Resolve a reference to its actual file path.
 
         Resolution order for both links ([[...]]) and embeds (![[...]]):
         1. Try exact path with extension
-        2. Try adding .md extension if no extension
-        3. Try finding any file with the same basename in the same directory
-        4. Try finding any file with the same basename in any directory
+        2. Try adding .md extension if no extension (for non-image files)
+        3. Try in assets directory (for image files)
+        4. Try finding any file with the same basename in the same directory
+        5. Try finding any file with the same basename in any directory
         """
+        # Check cache first
+        cache_key = f"{ref.source_file}:{ref.target}"
+        if cache_key in self._resolution_cache:
+            return self._resolution_cache[cache_key]
+
         # Get the directory of the source file
         source_dir = os.path.dirname(ref.source_file)
-
-        # Generate list of parent directory paths
-        parent_paths = []
-        if source_dir:
-            parts = source_dir.split(os.path.sep)
-            for i in range(len(parts)):
-                parent_path = os.path.normpath(
-                    os.path.join(*(["."] + [".."] * i), ref.target)
-                )
-                parent_paths.append(parent_path)
 
         # Try different path combinations
         possible_paths = [
@@ -60,22 +60,16 @@ class ReferenceChecker:
             os.path.basename(ref.target),
         ]
 
-        # Add parent directory paths
-        possible_paths.extend(parent_paths)
-
-        # If it's a simple reference (no path separators), recursively search in each directory
-        if not any(sep in ref.target for sep in ["/", "\\"]):
-            for root, _, _files in os.walk(self.fs.root_dir):
-                rel_root = os.path.relpath(root, self.fs.root_dir)
-                if rel_root == ".":
-                    rel_root = ""
-
-                # Skip ignored directories
-                if self.fs.should_ignore(rel_root):
-                    continue
-
-                # Add possible path in current directory
-                possible_paths.append(os.path.join(rel_root, ref.target))
+        # For image files, also try in assets directory
+        if os.path.splitext(ref.target)[1].lower() in {
+            ".png",
+            ".jpg",
+            ".jpeg",
+            ".gif",
+            ".svg",
+            ".webp",
+        }:
+            possible_paths.append(os.path.join("assets", os.path.basename(ref.target)))
 
         # Try each possible path
         for path in possible_paths:
@@ -84,51 +78,32 @@ class ReferenceChecker:
 
             # Normalize path
             path = self.fs.normalize_path(path)
-            basename = os.path.basename(path)
-            dirname = (
-                os.path.dirname(os.path.join(self.fs.root_dir, path))
-                or self.fs.root_dir
-            )
 
             # If path has extension, try it directly
             if os.path.splitext(path)[1]:
                 if self.fs.file_exists(path):
+                    self._resolution_cache[cache_key] = path
                     return path
                 continue
 
-            # Try with .md extension first
-            md_path = path + ".md"
-            if self.fs.file_exists(md_path):
-                return self.fs.normalize_path(md_path)
+            # Try with .md extension first (only for non-image files)
+            if not any(
+                ref.target.lower().endswith(ext)
+                for ext in {".png", ".jpg", ".jpeg", ".gif", ".svg", ".webp"}
+            ):
+                md_path = path + ".md"
+                if self.fs.file_exists(md_path):
+                    resolved = self.fs.normalize_path(md_path)
+                    self._resolution_cache[cache_key] = resolved
+                    return resolved
 
-            # Try finding any file with the same basename in the same directory
-            try:
-                files = os.listdir(dirname)
-                # Sort files to ensure consistent resolution order
-                files.sort()
-                for file in files:
-                    if file.startswith(basename + "."):
-                        rel_path = os.path.relpath(
-                            os.path.join(dirname, file), self.fs.root_dir
-                        )
-                        if not self.fs.should_ignore(rel_path):
-                            return self.fs.normalize_path(rel_path)
-            except OSError:
-                pass  # Directory might not exist
-
-            # Try finding any file with the same basename in any directory
-            for root, _, files in os.walk(self.fs.root_dir):
-                if self.fs.should_ignore(os.path.relpath(root, self.fs.root_dir)):
-                    continue
-                # Sort files to ensure consistent resolution order
-                files.sort()
-                for file in files:
-                    if file.startswith(basename + "."):
-                        rel_path = os.path.relpath(
-                            os.path.join(root, file), self.fs.root_dir
-                        )
-                        if not self.fs.should_ignore(rel_path):
-                            return self.fs.normalize_path(rel_path)
+            # Try finding any file with the same basename
+            basename = os.path.basename(path)
+            matches = self.fs.find_by_basename(basename)
+            if matches:
+                # Use the first match (they're sorted)
+                self._resolution_cache[cache_key] = matches[0]
+                return matches[0]
 
         return None
 
@@ -171,16 +146,32 @@ class ReferenceChecker:
 
         return result
 
+    def _build_ref_map(self) -> None:
+        """Build a map of files to their referenced files."""
+        self._ref_map.clear()
+        for source_file, refs in self.file_refs.items():
+            referenced_files = set()
+            for ref in refs:
+                resolved_path = self._resolve_reference(ref)
+                if resolved_path and not self.fs.is_image_file(resolved_path):
+                    referenced_files.add(resolved_path)
+            self._ref_map[source_file] = referenced_files
+
     def check_directory(self) -> CheckResult:
         """Check all Markdown files in the directory."""
         result = CheckResult()
         self.file_refs.clear()
         self.image_refs.clear()
+        self._resolution_cache.clear()
+        self._ref_map.clear()
 
         # Find all Markdown files
         for file_path in self.fs.find_files(pattern="*.md"):
             file_result = self.check_file(file_path)
             result = result.merge(file_result)
+
+        # Build reference map for faster unidirectional link checking
+        self._build_ref_map()
 
         # Find unused images
         image_patterns = ("*.png", "*.jpg", "*.jpeg", "*.gif", "*.svg", "*.webp")
@@ -190,28 +181,16 @@ class ReferenceChecker:
             result.add_unused_image(image)
 
         # Check for unidirectional links between markdown files
-        for source_file, refs in self.file_refs.items():
-            for ref in refs:
-                resolved_path = self._resolve_reference(ref)
-                if not resolved_path:
-                    continue
-
-                # Skip if the target is an image file
-                if self.fs.is_image_file(resolved_path):
-                    continue
-
-                # Only check markdown files for unidirectional links
-                if not resolved_path.endswith(".md"):
-                    continue
-
-                if resolved_path in self.file_refs:
+        for source_file, referenced_files in self._ref_map.items():
+            for target_file in referenced_files:
+                if target_file.endswith(".md"):
                     # Check for back references
                     source_base = os.path.splitext(source_file)[0]
-                    has_back_ref = any(
-                        r.target in (source_file, source_base)
-                        for r in self.file_refs[resolved_path]
-                    )
-                    if not has_back_ref:
-                        result.add_unidirectional_link(source_file, resolved_path)
+                    target_refs = self._ref_map.get(target_file, set())
+                    if (
+                        source_file not in target_refs
+                        and source_base not in target_refs
+                    ):
+                        result.add_unidirectional_link(source_file, target_file)
 
         return result

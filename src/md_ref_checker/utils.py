@@ -3,7 +3,7 @@
 import fnmatch
 import os
 import re
-from typing import Iterator, List, Tuple, Union
+from typing import Dict, Iterator, List, Tuple, Union
 
 
 class FileSystem:
@@ -14,8 +14,23 @@ class FileSystem:
         self.root_dir = os.path.abspath(root_dir)
         self.debug = debug
         self.ignore_patterns = self._load_ignore_patterns()
+        self._file_exists_cache: Dict[str, bool] = {}
+        self._dir_listing_cache: Dict[str, List[str]] = {}
+        self._pattern_match_cache: Dict[Tuple[str, str], bool] = {}
+        self._basename_cache: Dict[str, List[str]] = {}
+        self._compiled_patterns: Dict[str, re.Pattern] = (
+            {}
+        )  # Cache for compiled patterns
         if self.debug:
             print(f"Loaded ignore patterns: {self.ignore_patterns}")
+
+    def _clear_caches(self) -> None:
+        """Clear all caches."""
+        self._file_exists_cache.clear()
+        self._dir_listing_cache.clear()
+        self._pattern_match_cache.clear()
+        self._basename_cache.clear()
+        self._compiled_patterns.clear()
 
     def _clean_ignore_line(self, line: str) -> str:
         """Clean and validate an ignore pattern line."""
@@ -89,55 +104,76 @@ class FileSystem:
         ext = os.path.splitext(path.lower())[1]
         return ext in {".png", ".jpg", ".jpeg", ".gif", ".svg", ".webp"}
 
+    def _compile_pattern(self, pattern: str) -> re.Pattern:
+        """Convert a glob pattern to a regex pattern."""
+        if pattern in self._compiled_patterns:
+            return self._compiled_patterns[pattern]
+
+        # Convert glob pattern to regex pattern
+        regex = fnmatch.translate(pattern)
+        compiled = re.compile(regex)
+        self._compiled_patterns[pattern] = compiled
+        return compiled
+
     def _match_pattern(self, path: str, pattern: str) -> bool:
         """Match a path against a single pattern."""
+        cache_key = (path, pattern)
+        if cache_key in self._pattern_match_cache:
+            return self._pattern_match_cache[cache_key]
+
         if self.debug:
             print(f"Matching path '{path}' against pattern '{pattern}'")
 
-        # 处理以/开头的模式（根目录相对路径）
+        # Handle root-relative patterns
         if pattern.startswith("/"):
             pattern = pattern[1:]
-            # 如果模式以/结尾，表示目录
             if pattern.endswith("/"):
                 pattern = pattern[:-1]
                 result = path == pattern or path.startswith(pattern + "/")
             else:
-                result = fnmatch.fnmatch(path, pattern)
+                compiled = self._compile_pattern(pattern)
+                result = bool(compiled.match(path))
             if self.debug:
                 print(f"  Root pattern: {pattern} -> {result}")
+            self._pattern_match_cache[cache_key] = result
             return result
 
-        # 处理以/结尾的目录模式
+        # Handle directory patterns
         if pattern.endswith("/"):
             pattern = pattern[:-1]
             result = path == pattern or path.startswith(pattern + "/")
             if self.debug:
                 print(f"  Directory pattern: {pattern} -> {result}")
+            self._pattern_match_cache[cache_key] = result
             return result
 
-        # 处理通配符模式
+        # Handle wildcard patterns
         if "*" in pattern:
-            # 对路径的每一部分都尝试匹配
             path_parts = path.split("/")
             pattern_parts = pattern.split("/")
 
             if len(pattern_parts) == 1:
-                # 单层模式匹配任意层级
-                result = any(fnmatch.fnmatch(part, pattern) for part in path_parts)
+                # Single-level pattern matches any level
+                compiled = self._compile_pattern(pattern)
+                result = any(bool(compiled.match(part)) for part in path_parts)
                 if self.debug:
                     print(f"  Single-level wildcard: {pattern} -> {result}")
+                self._pattern_match_cache[cache_key] = result
                 return result
             else:
-                # 多层模式需要完整匹配
-                result = fnmatch.fnmatch(path, pattern)
+                # Multi-level pattern needs exact match
+                compiled = self._compile_pattern(pattern)
+                result = bool(compiled.match(path))
                 if self.debug:
                     print(f"  Multi-level wildcard: {pattern} -> {result}")
+                self._pattern_match_cache[cache_key] = result
                 return result
 
-        # 精确匹配
+        # Exact match
         result = path == pattern or path.startswith(pattern + "/")
         if self.debug:
             print(f"  Exact match: {pattern} -> {result}")
+        self._pattern_match_cache[cache_key] = result
         return result
 
     def should_ignore(self, path: str) -> bool:
@@ -159,28 +195,55 @@ class FileSystem:
             print("  Path not ignored")
         return False
 
+    def file_exists(self, rel_path: str) -> bool:
+        """Check if a file exists."""
+        if rel_path in self._file_exists_cache:
+            return self._file_exists_cache[rel_path]
+
+        abs_path = os.path.join(self.root_dir, rel_path)
+        result = os.path.isfile(abs_path) and not self.should_ignore(rel_path)
+        self._file_exists_cache[rel_path] = result
+        return result
+
+    def _get_dir_listing(self, dir_path: str) -> List[str]:
+        """Get directory listing with caching."""
+        if dir_path in self._dir_listing_cache:
+            return self._dir_listing_cache[dir_path]
+
+        try:
+            files = sorted(os.listdir(dir_path))
+            self._dir_listing_cache[dir_path] = files
+            return files
+        except OSError:
+            self._dir_listing_cache[dir_path] = []
+            return []
+
     def find_files(self, pattern: Union[str, Tuple[str, ...]] = "*") -> Iterator[str]:
         """Find files matching the pattern(s), respecting ignore rules."""
         patterns = (pattern,) if isinstance(pattern, str) else pattern
 
-        for root, _, files in os.walk(self.root_dir):
+        # Clear caches before starting a new search
+        self._clear_caches()
+
+        for root, _, _ in os.walk(self.root_dir):
             rel_root = os.path.relpath(root, self.root_dir)
             if rel_root == ".":
                 rel_root = ""
 
-            # 检查目录是否应该被忽略
+            # Check if directory should be ignored
             if self.should_ignore(rel_root):
                 continue
 
-            for file in files:
+            # Use cached directory listing
+            for file in self._get_dir_listing(root):
                 rel_path = os.path.join(rel_root, file)
                 norm_path = self.normalize_path(rel_path)
 
-                # 检查���件是否应该被忽略
+                # Check if file should be ignored
                 if self.should_ignore(norm_path):
                     continue
 
-                # 检查是否匹配模式
+                # Check if matches pattern
                 if any(fnmatch.fnmatch(file, p) for p in patterns):
                     yield norm_path
 
@@ -194,7 +257,25 @@ class FileSystem:
             print(f"Error reading file {rel_path}: {e}")
             return ""
 
-    def file_exists(self, rel_path: str) -> bool:
-        """Check if a file exists."""
-        abs_path = os.path.join(self.root_dir, rel_path)
-        return os.path.isfile(abs_path) and not self.should_ignore(rel_path)
+    def _build_basename_cache(self) -> None:
+        """Build cache of file basenames to their full paths."""
+        if self._basename_cache:
+            return
+
+        for root, _, _ in os.walk(self.root_dir):
+            rel_root = os.path.relpath(root, self.root_dir)
+            if rel_root == "." or self.should_ignore(rel_root):
+                continue
+
+            for file in self._get_dir_listing(root):
+                basename = os.path.splitext(file)[0]
+                rel_path = os.path.join(rel_root, file)
+                norm_path = self.normalize_path(rel_path)
+
+                if not self.should_ignore(norm_path):
+                    self._basename_cache.setdefault(basename, []).append(norm_path)
+
+    def find_by_basename(self, basename: str) -> List[str]:
+        """Find all files with a given basename."""
+        self._build_basename_cache()
+        return self._basename_cache.get(basename, [])

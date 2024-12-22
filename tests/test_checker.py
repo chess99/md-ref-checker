@@ -446,3 +446,55 @@ def test_mixed_file_references(checker: ReferenceChecker, temp_dir: Path) -> Non
     # First 5 should be links, last 5 should be embeds
     assert all(not ref.is_embed for ref in refs[:5])
     assert all(ref.is_embed for ref in refs[5:])
+
+
+def test_image_reference_resolution(checker: ReferenceChecker, temp_dir: Path) -> None:
+    """Test resolution of image references in different locations."""
+    # Create test directory structure
+    (temp_dir / "assets").mkdir()
+    (temp_dir / "dir1").mkdir()
+    (temp_dir / "dir1/assets").mkdir()
+
+    # Create test files
+    (temp_dir / "assets/image1.png").touch()
+    (temp_dir / "dir1/assets/image2.png").touch()
+    (temp_dir / "dir1/local_image.png").touch()
+
+    # Test cases for different image reference locations
+    test_cases = [
+        # Reference from root directory
+        ("doc1.md", "![[image1.png]]", "assets/image1.png"),
+        ("doc1.md", "![[assets/image1.png]]", "assets/image1.png"),
+        # Reference from subdirectory
+        ("dir1/doc2.md", "![[image1.png]]", "assets/image1.png"),
+        ("dir1/doc2.md", "![[../assets/image1.png]]", "assets/image1.png"),
+        ("dir1/doc2.md", "![[assets/image2.png]]", "dir1/assets/image2.png"),
+        ("dir1/doc2.md", "![[local_image.png]]", "dir1/local_image.png"),
+    ]
+
+    for source_file, content, expected_path in test_cases:
+        # Create source file
+        (temp_dir / source_file).write_text(content)
+
+        # Check references
+        result = checker.check_file(source_file)
+
+        # Verify no invalid references
+        assert not result.invalid_refs, f"Failed for {source_file}: {content}"
+
+        # Verify image is tracked
+        assert (
+            expected_path in checker.image_refs
+        ), f"Image not tracked: {expected_path}"
+
+
+def test_image_reference_with_spaces(checker: ReferenceChecker, temp_dir: Path) -> None:
+    """Test handling of image references with spaces in names."""
+    # Create test files
+    (temp_dir / "assets").mkdir()
+    (temp_dir / "assets/my image.png").touch()
+    (temp_dir / "doc with spaces.md").write_text("![[my image.png]]")
+
+    result = checker.check_file("doc with spaces.md")
+    assert not result.invalid_refs
+    assert "assets/my image.png" in checker.image_refs
