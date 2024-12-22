@@ -1,119 +1,81 @@
-"""Markdown parsing utilities."""
+"""Markdown parser implementation."""
 
 import re
-from typing import Iterator, Match
+from typing import Iterator
 
 from .models import Reference
 
 
 class MarkdownParser:
-    """Parser for extracting references from Markdown files."""
+    """Parser for Markdown files."""
 
     def __init__(self) -> None:
-        # Match Obsidian-style references: [[file]] or [[file|alias]]
-        self.wiki_ref_pattern = re.compile(r"\[\[([^|\]]+)(?:\|[^\]]+)?\]\]")
-        # Match Obsidian-style images: ![[image]]
-        self.wiki_img_pattern = re.compile(r"!\[\[([^|\]]+)(?:\|[^\]]+)?\]\]")
-        # Match standard Markdown images: ![alt](path), but not external URLs
-        self.md_img_pattern = re.compile(r"!\[(?:[^\]]*)\]\((?!https?://)(.*?)\)")
-        # Match inline code blocks
-        self.inline_code_pattern = re.compile(r"`[^`]+`")
-
-    def _clean_target(self, target: str) -> str:
-        """Clean up the target path by removing heading references."""
-        # Remove heading references (e.g., file#heading -> file)
-        return target.split("#")[0]
-
-    def _find_column(self, line: str, match: Match[str]) -> int:
-        """Find the real column number in the original line."""
-        # Skip inline code blocks
-        line_parts = []
-        last_end = 0
-        for code_match in self.inline_code_pattern.finditer(line):
-            line_parts.append(line[last_end : code_match.start()])
-            last_end = code_match.end()
-        line_parts.append(line[last_end:])
-
-        # Calculate actual column number
-        pos = 0
-        for part in line_parts:
-            found_pos = part.find(match.group(0))
-            if found_pos != -1:
-                return pos + found_pos + 1
-            pos += len(part)
-        return match.start() + 1
-
-    def _remove_inline_code(self, line: str) -> str:
-        """Remove inline code blocks from a line."""
-        result = []
-        last_end = 0
-        for match in self.inline_code_pattern.finditer(line):
-            result.append(line[last_end : match.start()])
-            # Replace code block with spaces to maintain column numbers
-            result.append(" " * (match.end() - match.start()))
-            last_end = match.end()
-        result.append(line[last_end:])
-        return "".join(result)
+        """Initialize the parser."""
+        # Wiki-style references: [[file]] or ![[file]]
+        self.wiki_ref_pattern = re.compile(r"(!?\[\[([^]|]+)(?:\|[^]]+)?\]\])")
+        # Standard Markdown image references: ![alt](file)
+        self.md_img_pattern = re.compile(r"!\[([^]]*)\]\(([^)]+)\)")
 
     def parse_references(self, source_file: str, content: str) -> Iterator[Reference]:
-        """Parse references from Markdown content."""
-        lines = content.splitlines()
+        """Parse references from Markdown content.
+
+        Args:
+            source_file: The file being parsed
+            content: The Markdown content to parse
+
+        Returns:
+            Iterator of Reference objects
+        """
+        # Track code block state
         in_code_block = False
+        lines = content.split("\n")
 
         for line_num, line in enumerate(lines, start=1):
-            # Check if entering or leaving code block
+            # Check for code block markers
             if line.strip().startswith("```"):
                 in_code_block = not in_code_block
                 continue
 
-            # Skip processing inside code blocks
+            # Skip code blocks
             if in_code_block:
                 continue
 
-            # Remove inline code blocks
-            clean_line = self._remove_inline_code(line)
+            # Skip inline code
+            parts = line.split("`")
+            clean_line = ""
+            for i, part in enumerate(parts):
+                if i % 2 == 0:  # Outside inline code
+                    clean_line += part
+                else:  # Inside inline code
+                    clean_line += " " * len(part)  # Preserve length
 
-            # Process regular references first
+            # Find wiki-style references
             for match in self.wiki_ref_pattern.finditer(clean_line):
-                # Skip if this is part of an image reference
-                if clean_line[match.start() - 1 : match.start()] == "!":
-                    continue
-                target = self._clean_target(match.group(1))
-                if target:  # Skip empty references
-                    column = self._find_column(line, match)
-                    yield Reference(
-                        source_file=source_file,
-                        target=target,
-                        line_number=line_num,
-                        column=column,
-                        line_content=line.strip(),
-                        is_image=False,
-                    )
+                full_match, target = match.groups()
+                # Check if it's an embed reference
+                is_embed = full_match.startswith("!")
+                # Remove any heading reference
+                target = target.split("#")[0]
+                yield Reference(
+                    source_file=source_file,
+                    target=target,
+                    line_number=line_num,
+                    column=match.start() + 1,
+                    line_content=line,
+                    is_embed=is_embed,
+                )
 
-            # Process Obsidian-style image references
-            for match in self.wiki_img_pattern.finditer(clean_line):
-                target = self._clean_target(match.group(1))
-                if target:  # Skip empty references
-                    column = self._find_column(line, match)
-                    yield Reference(
-                        source_file=source_file,
-                        target=target,
-                        line_number=line_num,
-                        column=column,
-                        line_content=line.strip(),
-                        is_image=True,
-                    )
-
-            # Process standard Markdown image references
+            # Find standard Markdown image references
             for match in self.md_img_pattern.finditer(clean_line):
-                target = self._clean_target(match.group(1))
-                if target:  # Skip empty references
-                    column = self._find_column(line, match)
-                    yield Reference(
-                        source_file=source_file,
-                        target=target,
-                        line_number=line_num,
-                        column=column,
-                        line_content=line.strip(),
-                        is_image=True,
-                    )
+                # Skip external URLs
+                target = match.group(2)
+                if target.startswith(("http://", "https://")):
+                    continue
+                yield Reference(
+                    source_file=source_file,
+                    target=target,
+                    line_number=line_num,
+                    column=match.start() + 1,
+                    line_content=line,
+                    is_embed=True,  # Standard Markdown images are always embedded
+                )

@@ -1,5 +1,6 @@
 """Test cases for checker module."""
 
+import os
 from pathlib import Path
 from typing import TYPE_CHECKING
 
@@ -13,14 +14,18 @@ if TYPE_CHECKING:
 
 @pytest.fixture
 def temp_dir(tmp_path: Path) -> Path:
-    """Create a temporary directory for testing."""
+    """Create a temporary directory for tests."""
+    # Change to the temporary directory for the duration of the test
+    os.chdir(str(tmp_path))
+    print(f"\nTemporary directory: {tmp_path}")
     return tmp_path
 
 
 @pytest.fixture
 def checker(temp_dir: Path) -> ReferenceChecker:
-    """Create a ReferenceChecker instance with a temporary directory."""
-    return ReferenceChecker(str(temp_dir))
+    """Create a ReferenceChecker instance."""
+    checker = ReferenceChecker(str(temp_dir), debug=True)
+    return checker
 
 
 def test_check_single_file(checker: ReferenceChecker, temp_dir: Path) -> None:
@@ -219,3 +224,225 @@ def test_reference_search_order(checker: ReferenceChecker, temp_dir: Path) -> No
 
     result = checker.check_file("dir1/subdir/source.md")
     assert not result.invalid_refs  # Should find the local target.md
+
+
+def test_file_extension_handling(checker: ReferenceChecker, temp_dir: Path) -> None:
+    """Test handling of references with and without file extensions."""
+    # Create test files
+    (temp_dir / "doc.md").write_text("Content")
+    (temp_dir / "script.py").write_text("print('hello')")
+    (temp_dir / "data.json").write_text("{}")
+    (temp_dir / "source.md").write_text(
+        """
+[[doc]]  # Should add .md
+[[script.py]]  # Exact extension
+[[data.json]]  # Exact extension
+[[missing]]  # Invalid reference
+![[doc]]  # Should add .md
+![[script.py]]  # Exact extension
+![[missing.txt]]  # Invalid reference
+""".strip()
+    )
+
+    print("\nCreated files:")
+    for file in temp_dir.glob("*"):
+        print(f"  {file.relative_to(temp_dir)}")
+
+    result = checker.check_file("source.md")
+
+    print("\nInvalid references:")
+    for ref in result.invalid_refs:
+        print(f"  {ref}")
+
+    # Only missing and missing.txt should be invalid
+    assert len(result.invalid_refs) == 2
+    invalid_targets = {ref.target for ref in result.invalid_refs}
+    assert invalid_targets == {"missing", "missing.txt"}
+
+
+def test_embed_vs_link_references(checker: ReferenceChecker, temp_dir: Path) -> None:
+    """Test that both [[]] and ![[]] can reference any file type."""
+    # Create test files with different extensions
+    (temp_dir / "doc.md").write_text("Content")
+    (temp_dir / "image.png").write_text("binary")
+    (temp_dir / "data.json").write_text("{}")
+
+    (temp_dir / "source.md").write_text(
+        """
+# Links
+[[doc]]  # Link to markdown
+[[image.png]]  # Link to image
+[[data.json]]  # Link to data
+
+# Embeds
+![[doc]]  # Embed markdown
+![[image.png]]  # Embed image
+![[data.json]]  # Embed data
+""".strip()
+    )
+
+    print("\nCreated files:")
+    for file in temp_dir.glob("*"):
+        print(f"  {file.relative_to(temp_dir)}")
+
+    result = checker.check_file("source.md")
+
+    print("\nInvalid references:")
+    for ref in result.invalid_refs:
+        print(f"  {ref}")
+
+    # All references should be valid
+    assert not result.invalid_refs
+
+    # Verify reference types
+    refs = list(
+        checker.parser.parse_references(
+            "source.md", (temp_dir / "source.md").read_text()
+        )
+    )
+    assert len(refs) == 6
+
+    # Links (is_embed=False)
+    links = [ref for ref in refs if not ref.is_embed]
+    assert len(links) == 3
+    assert {ref.target for ref in links} == {"doc", "image.png", "data.json"}
+
+    # Embeds (is_embed=True)
+    embeds = [ref for ref in refs if ref.is_embed]
+    assert len(embeds) == 3
+    assert {ref.target for ref in embeds} == {"doc", "image.png", "data.json"}
+
+
+def test_default_md_extension(checker: ReferenceChecker, temp_dir: Path) -> None:
+    """Test that .md extension is added only when no extension is present."""
+    # Create test files
+    (temp_dir / "note.md").write_text("Content")
+    (temp_dir / "source.md").write_text(
+        """
+[[note]]  # Should add .md
+[[note.md]]  # Already has .md
+![[note]]  # Should add .md
+![[note.md]]  # Already has .md
+""".strip()
+    )
+
+    print("\nCreated files:")
+    for file in temp_dir.glob("*"):
+        print(f"  {file.relative_to(temp_dir)}")
+
+    result = checker.check_file("source.md")
+
+    print("\nInvalid references:")
+    for ref in result.invalid_refs:
+        print(f"  {ref}")
+
+    # All references should be valid
+    assert not result.invalid_refs
+
+    # Each reference should resolve to the same file
+    refs = list(
+        checker.parser.parse_references(
+            "source.md", (temp_dir / "source.md").read_text()
+        )
+    )
+    assert len(refs) == 4
+
+    for ref in refs:
+        resolved = checker._resolve_reference(ref)
+        print(f"\nResolved {ref.target} -> {resolved}")
+        assert resolved == "note.md"
+
+
+def test_unused_images(checker: ReferenceChecker, temp_dir: Path) -> None:
+    """Test detection of unused image files."""
+    # Create test files
+    (temp_dir / "assets").mkdir()
+    (temp_dir / "assets/used1.png").touch()
+    (temp_dir / "assets/used2.jpg").touch()
+    (temp_dir / "assets/unused1.png").touch()
+    (temp_dir / "assets/unused2.jpg").touch()
+
+    # Create markdown files with references
+    (temp_dir / "doc1.md").write_text(
+        """
+# Document 1
+![[assets/used1.png]]  # Embed image
+[[assets/used2.jpg]]   # Link to image
+""".strip()
+    )
+
+    (temp_dir / "doc2.md").write_text(
+        """
+# Document 2
+![](assets/used1.png)  # Standard MD image
+""".strip()
+    )
+
+    # Test normal mode (default)
+    result = checker.check_directory()
+    assert result.unused_images == {
+        "assets/unused1.png",
+        "assets/unused2.jpg",
+    }
+
+    # Test strict mode
+    strict_checker = ReferenceChecker(str(temp_dir), strict_image_refs=True)
+    strict_result = strict_checker.check_directory()
+    assert strict_result.unused_images == {
+        "assets/unused1.png",
+        "assets/unused2.jpg",
+        "assets/used2.jpg",  # Not counted in strict mode because it's only linked
+    }
+
+
+def test_mixed_file_references(checker: ReferenceChecker, temp_dir: Path) -> None:
+    """Test handling of mixed file types and reference styles."""
+    # Create various file types
+    (temp_dir / "doc1.md").write_text("Content 1")
+    (temp_dir / "doc2.md").write_text("Content 2")
+    (temp_dir / "script.py").write_text("print('hello')")
+    (temp_dir / "data.json").write_text("{}")
+    (temp_dir / "image.png").touch()
+
+    (temp_dir / "source.md").write_text(
+        """
+# Links (no content embedding)
+[[doc1]]  # .md will be added
+[[doc2.md]]
+[[script.py]]
+[[data.json]]
+[[image.png]]
+
+# Embeds (with content embedding)
+![[doc1]]  # .md will be added
+![[doc2.md]]
+![[script.py]]
+![[data.json]]
+![[image.png]]
+""".strip()
+    )
+
+    print("\nCreated files:")
+    for file in temp_dir.glob("*"):
+        print(f"  {file.relative_to(temp_dir)}")
+
+    result = checker.check_file("source.md")
+
+    print("\nInvalid references:")
+    for ref in result.invalid_refs:
+        print(f"  {ref}")
+
+    # All references should be valid
+    assert not result.invalid_refs
+
+    # Verify reference types
+    refs = list(
+        checker.parser.parse_references(
+            "source.md", (temp_dir / "source.md").read_text()
+        )
+    )
+    assert len(refs) == 10
+
+    # First 5 should be links, last 5 should be embeds
+    assert all(not ref.is_embed for ref in refs[:5])
+    assert all(ref.is_embed for ref in refs[5:])

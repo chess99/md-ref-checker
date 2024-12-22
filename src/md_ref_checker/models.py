@@ -6,14 +6,25 @@ from typing import List, Set, Tuple
 
 @dataclass(frozen=True)
 class Reference:
-    """Represents a reference in a Markdown file."""
+    """Represents a reference in a Markdown file.
+
+    Attributes:
+        source_file: The file containing the reference
+        target: The referenced file or resource
+        line_number: Line number where the reference appears
+        column: Column number where the reference starts
+        line_content: The full line content containing the reference
+        is_embed: Whether this is an embed reference (![[...]]) that embeds the target's
+                content into the current document, rather than just a link reference ([[...]])
+                that creates a clickable link
+    """
 
     source_file: str
     target: str
     line_number: int
     column: int
     line_content: str
-    is_image: bool
+    is_embed: bool
 
     def __str__(self) -> str:
         """Return a string representation of the reference."""
@@ -28,7 +39,7 @@ class Reference:
             and self.line_number == other.line_number
             and self.column == other.column
             and self.line_content == other.line_content
-            and self.is_image == other.is_image
+            and self.is_embed == other.is_embed
         )
 
     def __hash__(self) -> int:
@@ -39,7 +50,7 @@ class Reference:
                 self.line_number,
                 self.column,
                 self.line_content,
-                self.is_image,
+                self.is_embed,
             )
         )
 

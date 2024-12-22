@@ -4,9 +4,13 @@
 
 ## 特性
 
-- 检查文件引用 (`[[file]]` 或 `[[file|alias]]`)
-- 检查标题引用 (`[[file#heading]]`)
-- 检查图片引用 (`![[image]]` 和 `![alt](image)`)
+- 支持两种引用语法：
+  - `[[file]]` - 创建到文件的链接
+  - `![[file]]` - 嵌入并渲染文件内容
+- 支持引用任意类型文件（无扩展名时默认为 .md）
+- 支持引用别名 (`[[file|alias]]` 或 `![[file|alias]]`)
+- 支持标题引用 (`[[file#heading]]`)
+- 支持标准 Markdown 图片语法 (`![alt](image)`)
 - 检测未使用的图片
 - 检测单向链接（A引用B但B没有引用A）
 - 支持 `.gitignore` 和自定义忽略规则
@@ -60,6 +64,9 @@ md-ref-checker -r
 
 # 显示调试信息
 md-ref-checker -D
+
+# 严格图片引用模式
+md-ref-checker --strict-image-refs
 ```
 
 ### 命令行选项
@@ -73,6 +80,7 @@ md-ref-checker -D
 - `-i, --ignore`: 添加要忽略的文件模式（可多次使用）
 - `-r, --delete-unused-images`: 删除未被引用的图片文件
 - `-D, --debug`: 显示调试信息
+- `--strict-image-refs`: 严格图片引用模式（只将 ![[]] 和 ![] 视为图片引用）
 
 ### Python API
 
@@ -81,6 +89,9 @@ from md_ref_checker import ReferenceChecker
 
 # 创建检查器
 checker = ReferenceChecker("docs")
+
+# 启用严格图片引用模式（只将 ![[]] 和 ![] 视为图片引用）
+checker = ReferenceChecker("docs", strict_image_refs=True)
 
 # 添加忽略规则
 checker.fs.ignore_patterns.extend(["*.tmp", "draft/*"])

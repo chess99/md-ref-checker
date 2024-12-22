@@ -62,6 +62,11 @@ def print_debug(msg: str) -> None:
     "-r", "--delete-unused-images", is_flag=True, help="删除未被引用的图片文件"
 )
 @click.option("-D", "--debug", is_flag=True, help="显示调试信息")
+@click.option(
+    "--strict-image-refs",
+    is_flag=True,
+    help="严格图片引用模式（只将 ![[]] 和 ![] 视为图片引用）",
+)
 def main(
     directory: str,
     verbosity: int,
@@ -69,6 +74,7 @@ def main(
     ignore: List[str],
     delete_unused_images: bool,
     debug: bool,
+    strict_image_refs: bool,
 ) -> None:
     """Markdown 引用检查工具。
 
@@ -76,10 +82,10 @@ def main(
 
     \b
     1. 引用检查：
-       - 文档引用 [[文件名]] 或 [[文件名|显示文本]]
+       - 链接引用 [[文件名]] 或 [[文件名|显示文本]] - 创建到文件的链接
+       - 嵌入引用 ![[文件名]] 或 ![[文件名|显示文本]] - 嵌入并渲染文件内容
        - 标题引用 [[文件名#标题]] 或 [[文件名#标题1#标题2|显示文本]]
-       - 图片引用 ![[图片文件名]]
-       - 网络图片引用 ![图片说明](https://图片地址)
+       - 标准图片引用 ![图片说明](图片路径)
        - 检查单向引用：A引用了B，但B没有引用A
        - 生成引用统计信息
 
@@ -88,13 +94,19 @@ def main(
        - 根目录使用拼音首字母+中文名称（如 wl物理/）
        - 子目录和文件直接使用中文名称，不需要拼音索引
        - 图片文件统一存放在根目录的 assets/ 文件夹下
+
+    注意：对于没有扩展名的引用，默认添加 .md 扩展名。
     """
     try:
         if debug:
             print_debug("开始检查...")
 
         # 创建检查器
-        checker = ReferenceChecker(directory, debug=debug)
+        checker = ReferenceChecker(
+            directory,
+            debug=debug,
+            strict_image_refs=strict_image_refs,
+        )
 
         # 添加额外的忽略模式
         if ignore:
@@ -153,7 +165,7 @@ def main(
                     1
                     for refs in checker.file_refs.values()
                     for ref in refs
-                    if not ref.is_image and ref.target == file
+                    if not ref.is_embed and ref.target == file
                 )
                 if incoming_count > 0 or outgoing_count > 0:
                     print(f"\n  {file}:")
@@ -162,7 +174,7 @@ def main(
                     if outgoing_count > 0:
                         print("  - 引用其他文件:")
                         for ref in sorted(stats, key=lambda r: r.target):
-                            if not ref.is_image:
+                            if not ref.is_embed:
                                 print(f"    * {ref.target}")
 
         # 删除未使用的图片（如果指定了-r选项）

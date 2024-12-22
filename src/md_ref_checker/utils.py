@@ -176,7 +176,7 @@ class FileSystem:
                 rel_path = os.path.join(rel_root, file)
                 norm_path = self.normalize_path(rel_path)
 
-                # 检查文件是否应该被忽略
+                # 检查���件是否应该被忽略
                 if self.should_ignore(norm_path):
                     continue
 
@@ -197,4 +197,4 @@ class FileSystem:
     def file_exists(self, rel_path: str) -> bool:
         """Check if a file exists."""
         abs_path = os.path.join(self.root_dir, rel_path)
-        return os.path.isfile(abs_path)
+        return os.path.isfile(abs_path) and not self.should_ignore(rel_path)
