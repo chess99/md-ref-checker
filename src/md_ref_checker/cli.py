@@ -56,7 +56,7 @@ def print_debug(msg: str) -> None:
 @click.option('-D', '--debug',
               is_flag=True,
               help='显示调试信息')
-def cli(directory: str,
+def main(directory: str,
         verbosity: int,
         no_color: bool,
         ignore: List[str],
@@ -69,7 +69,7 @@ def cli(directory: str,
     \b
     1. 引用检查：
        - 文档引用 [[文件名]] 或 [[文件名|显示文本]]
-       - 标题引用 [[��件名#标题]] 或 [[文件名#标题1#标题2|显示文本]]
+       - 标题引用 [[文件名#标题]] 或 [[文件名#标题1#标题2|显示文本]]
        - 图片引用 ![[图片文件名]]
        - 网络图片引用 ![图片说明](https://图片地址)
        - 检查单向引用：A引用了B，但B没有引用A
@@ -86,7 +86,7 @@ def cli(directory: str,
             print_debug("开始检查...")
         
         # 创建检查器
-        checker = ReferenceChecker(directory)
+        checker = ReferenceChecker(directory, debug=debug)
         
         # 添加额外的忽略模式
         if ignore:
@@ -185,4 +185,4 @@ def cli(directory: str,
 
 
 if __name__ == '__main__':
-    cli()
+    main()

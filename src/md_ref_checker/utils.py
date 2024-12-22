@@ -9,11 +9,13 @@ import fnmatch
 class FileSystem:
     """File system operations handler."""
 
-    def __init__(self, root_dir: str) -> None:
+    def __init__(self, root_dir: str, debug: bool = False) -> None:
         """Initialize with root directory."""
         self.root_dir = os.path.abspath(root_dir)
+        self.debug = debug
         self.ignore_patterns = self._load_ignore_patterns()
-        print(f"Loaded ignore patterns: {self.ignore_patterns}")  # Debug
+        if self.debug:
+            print(f"Loaded ignore patterns: {self.ignore_patterns}")
 
     def _clean_ignore_line(self, line: str) -> str:
         """Clean and validate an ignore pattern line."""
@@ -32,7 +34,8 @@ class FileSystem:
         if not line.endswith('/*') and os.path.isdir(os.path.join(self.root_dir, line)):
             line = line.rstrip('/') + '/'
         
-        print(f"Cleaned ignore line: {line}")  # Debug
+        if self.debug:
+            print(f"Cleaned ignore line: {line}")
         return line
 
     def _load_ignore_patterns(self) -> List[str]:
@@ -88,7 +91,8 @@ class FileSystem:
 
     def _match_pattern(self, path: str, pattern: str) -> bool:
         """Match a path against a single pattern."""
-        print(f"Matching path '{path}' against pattern '{pattern}'")  # Debug
+        if self.debug:
+            print(f"Matching path '{path}' against pattern '{pattern}'")
         
         # 处理以/开头的模式（根目录相对路径）
         if pattern.startswith('/'):
@@ -99,14 +103,16 @@ class FileSystem:
                 result = path == pattern or path.startswith(pattern + '/')
             else:
                 result = fnmatch.fnmatch(path, pattern)
-            print(f"  Root pattern: {pattern} -> {result}")  # Debug
+            if self.debug:
+                print(f"  Root pattern: {pattern} -> {result}")
             return result
         
         # 处理以/结尾的目录模式
         if pattern.endswith('/'):
             pattern = pattern[:-1]
             result = path == pattern or path.startswith(pattern + '/')
-            print(f"  Directory pattern: {pattern} -> {result}")  # Debug
+            if self.debug:
+                print(f"  Directory pattern: {pattern} -> {result}")
             return result
         
         # 处理通配符模式
@@ -118,33 +124,39 @@ class FileSystem:
             if len(pattern_parts) == 1:
                 # 单层模式匹配任意层级
                 result = any(fnmatch.fnmatch(part, pattern) for part in path_parts)
-                print(f"  Single-level wildcard: {pattern} -> {result}")  # Debug
+                if self.debug:
+                    print(f"  Single-level wildcard: {pattern} -> {result}")
                 return result
             else:
                 # 多层模式需要完整匹配
                 result = fnmatch.fnmatch(path, pattern)
-                print(f"  Multi-level wildcard: {pattern} -> {result}")  # Debug
+                if self.debug:
+                    print(f"  Multi-level wildcard: {pattern} -> {result}")
                 return result
         
         # 精确匹配
         result = path == pattern or path.startswith(pattern + '/')
-        print(f"  Exact match: {pattern} -> {result}")  # Debug
+        if self.debug:
+            print(f"  Exact match: {pattern} -> {result}")
         return result
 
     def should_ignore(self, path: str) -> bool:
         """Check if a path should be ignored based on ignore patterns."""
         path = self.normalize_path(path)
-        print(f"\nChecking if path should be ignored: {path}")  # Debug
+        if self.debug:
+            print(f"\nChecking if path should be ignored: {path}")
         
         for pattern in self.ignore_patterns:
             if not pattern:  # 跳过空模式
                 continue
             
             if self._match_pattern(path, pattern):
-                print(f"  Ignoring path due to pattern: {pattern}")  # Debug
+                if self.debug:
+                    print(f"  Ignoring path due to pattern: {pattern}")
                 return True
         
-        print("  Path not ignored")  # Debug
+        if self.debug:
+            print("  Path not ignored")
         return False
 
     def find_files(self, pattern: Union[str, Tuple[str, ...]] = "*") -> Iterator[str]:

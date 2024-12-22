@@ -9,9 +9,9 @@ from .parsers import MarkdownParser
 class ReferenceChecker:
     """Main reference checker class."""
 
-    def __init__(self, root_dir: str) -> None:
+    def __init__(self, root_dir: str, debug: bool = False) -> None:
         """Initialize with root directory."""
-        self.fs = FileSystem(root_dir)
+        self.fs = FileSystem(root_dir, debug=debug)
         self.parser = MarkdownParser()
         self.file_refs: Dict[str, Set[Reference]] = {}  # 文件到其引用的映射
         self.image_refs: Set[str] = set()  # 所有被引用的图片

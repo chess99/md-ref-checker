@@ -14,6 +14,8 @@
   - Write tests first before implementation
   - Red-Green-Refactor cycle
   - Keep tests focused and meaningful
+  - **Always update tests before modifying implementation**
+  - **Run tests after implementation changes to verify**
 - Embrace refactoring when needed:
   - Improve code structure without changing behavior
   - Use automated tests to verify refactoring
@@ -37,7 +39,7 @@
 
 - Use pytest and pytest plugins only (no unittest)
 - Place all tests in ./tests directory
-- Add __init__.py to new directories
+- Add **init**.py to new directories
 - Include type annotations and docstrings in tests
 - Import test fixtures when TYPE_CHECKING:
 

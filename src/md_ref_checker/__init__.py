@@ -5,7 +5,7 @@ from .models import Reference, FileStats, CheckResult
 from .checker import ReferenceChecker
 from .parsers import MarkdownParser
 from .utils import FileSystem
-from .cli import cli
+from .cli import main
 
 __version__ = version("md-ref-checker")
 
@@ -16,5 +16,5 @@ __all__ = [
     "ReferenceChecker",
     "MarkdownParser",
     "FileSystem",
-    "cli",
+    "main",
 ]
