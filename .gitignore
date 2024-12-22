@@ -33,7 +33,6 @@ coverage.xml
 
 # IDE
 .idea/
-.vscode/
 *.swp
 *.swo
 *~
@@ -53,4 +52,4 @@ build/
 
 # Misc
 .DS_Store
-Thumbs.db 
+Thumbs.db
