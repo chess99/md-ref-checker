@@ -15,6 +15,10 @@ class Reference:
     line_content: str
     is_image: bool
 
+    def __str__(self) -> str:
+        """Return a string representation of the reference."""
+        return f"{self.source_file}:{self.line_number}:{self.column} -> {self.target}"
+
     def __eq__(self, other: object) -> bool:
         if not isinstance(other, Reference):
             return NotImplemented

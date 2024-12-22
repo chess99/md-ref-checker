@@ -2,11 +2,14 @@
 
 import os
 import sys
+from importlib.metadata import version
 from typing import List
 
 import click
 
 from .checker import ReferenceChecker
+
+__version__ = version("md-ref-checker")
 
 
 def print_error(msg: str, no_color: bool = False) -> None:
@@ -39,6 +42,7 @@ def print_debug(msg: str) -> None:
 
 
 @click.command()
+@click.version_option(__version__, prog_name="md-ref-checker")
 @click.option(
     "-d",
     "--dir",

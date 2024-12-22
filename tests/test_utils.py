@@ -22,8 +22,15 @@ def test_file_system_init(temp_dir: Path) -> None:
     """Test FileSystem initialization."""
     fs = FileSystem(str(temp_dir))
     assert fs.root_dir == str(temp_dir)
-    assert not fs.ignore_patterns
-    assert not fs.debug
+    # Check default ignore patterns
+    assert fs.ignore_patterns == [
+        ".git/*",
+        ".obsidian/*",
+        ".trash/*",
+        "node_modules/*",
+        ".DS_Store",
+        "Thumbs.db",
+    ]
 
 
 def test_file_system_normalize_path(temp_dir: Path) -> None:

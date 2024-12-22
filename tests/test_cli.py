@@ -23,8 +23,8 @@ def test_cli_help(capsys: "CaptureFixture[str]") -> None:
         main(["--help"])
     assert exc_info.value.code == 0
     captured = capsys.readouterr()
-    assert "usage:" in captured.out
-    assert "options:" in captured.out
+    assert "Usage: " in captured.out
+    assert "Options:" in captured.out
 
 
 def test_cli_version(capsys: "CaptureFixture[str]") -> None:
@@ -42,9 +42,11 @@ def test_cli_check_valid_files(temp_dir: Path, capsys: "CaptureFixture[str]") ->
     (temp_dir / "file1.md").write_text("Link to [[file2]]")
     (temp_dir / "file2.md").write_text("Link to [[file1]]")
 
-    main(["-d", str(temp_dir)])
+    with pytest.raises(SystemExit) as exc_info:
+        main(["-d", str(temp_dir)])
+    assert exc_info.value.code == 0
     captured = capsys.readouterr()
-    assert "No issues found" in captured.out
+    assert "✓ 所有引用都是有效的" in captured.out
 
 
 def test_cli_check_invalid_files(temp_dir: Path, capsys: "CaptureFixture[str]") -> None:
@@ -57,9 +59,9 @@ def test_cli_check_invalid_files(temp_dir: Path, capsys: "CaptureFixture[str]") 
     assert exc_info.value.code == 1
 
     captured = capsys.readouterr()
-    assert "Invalid references found" in captured.out
-    assert "source.md" in captured.out
-    assert "nonexistent" in captured.out
+    assert "无效引用" in captured.err
+    assert "source.md" in captured.err
+    assert "nonexistent" in captured.err
 
 
 def test_cli_check_unused_images(temp_dir: Path, capsys: "CaptureFixture[str]") -> None:
@@ -71,10 +73,10 @@ def test_cli_check_unused_images(temp_dir: Path, capsys: "CaptureFixture[str]") 
 
     with pytest.raises(SystemExit) as exc_info:
         main(["-d", str(temp_dir)])
-    assert exc_info.value.code == 1
+    assert exc_info.value.code == 0  # No error for unused images
 
     captured = capsys.readouterr()
-    assert "Unused images found" in captured.out
+    assert "未被引用的图片文件" in captured.err
     assert "unused.png" in captured.out
 
 
@@ -88,10 +90,10 @@ def test_cli_check_unidirectional_links(
 
     with pytest.raises(SystemExit) as exc_info:
         main(["-d", str(temp_dir), "-v", "1"])
-    assert exc_info.value.code == 1
+    assert exc_info.value.code == 0  # No error for unidirectional links
 
     captured = capsys.readouterr()
-    assert "Unidirectional links found" in captured.out
+    assert "单向链接" in captured.out
     assert "file1.md" in captured.out
     assert "file2.md" in captured.out
 
@@ -102,9 +104,13 @@ def test_cli_ignore_patterns(temp_dir: Path, capsys: "CaptureFixture[str]") -> N
     (temp_dir / "main.md").write_text("[[draft]]")
     (temp_dir / "draft.md").write_text("Draft content")
 
-    main(["-d", str(temp_dir), "-i", "draft.*"])
+    with pytest.raises(SystemExit) as exc_info:
+        main(["-d", str(temp_dir), "-i", "draft.*"])
+    assert exc_info.value.code == 1  # Error for invalid reference
+
     captured = capsys.readouterr()
-    assert "Invalid references found" in captured.out
+    assert "无效引用" in captured.err
+    assert "draft" in captured.err
 
 
 def test_cli_debug_output(temp_dir: Path, capsys: "CaptureFixture[str]") -> None:
@@ -112,6 +118,9 @@ def test_cli_debug_output(temp_dir: Path, capsys: "CaptureFixture[str]") -> None
     # Create test file
     (temp_dir / "test.md").write_text("Test content")
 
-    main(["-d", str(temp_dir), "-D"])
+    with pytest.raises(SystemExit) as exc_info:
+        main(["-d", str(temp_dir), "-D"])
+    assert exc_info.value.code == 0
+
     captured = capsys.readouterr()
     assert "[DEBUG]" in captured.out
