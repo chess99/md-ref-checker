@@ -1,11 +1,11 @@
 """Markdown reference checker package."""
 from importlib.metadata import version
 
-from .models import Reference, FileStats, CheckResult
 from .checker import ReferenceChecker
+from .cli import main
+from .models import CheckResult, FileStats, Reference
 from .parsers import MarkdownParser
 from .utils import FileSystem
-from .cli import main
 
 __version__ = version("md-ref-checker")
 

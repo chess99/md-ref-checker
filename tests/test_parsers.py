@@ -1,11 +1,11 @@
 """Test cases for the parsers module."""
 from typing import TYPE_CHECKING
+
 import pytest
 from md_ref_checker.parsers import MarkdownParser
-from md_ref_checker.models import Reference
 
 if TYPE_CHECKING:
-    from pytest_mock import MockerFixture
+    pass  # No type checking imports needed
 
 
 def test_parse_simple_reference():

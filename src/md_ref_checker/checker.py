@@ -1,9 +1,10 @@
 """Markdown reference checker implementation."""
 import os
-from typing import Dict, Set, List, Optional
-from .models import Reference, CheckResult
-from .utils import FileSystem
+from typing import Dict, Optional, Set
+
+from .models import CheckResult, Reference
 from .parsers import MarkdownParser
+from .utils import FileSystem
 
 
 class ReferenceChecker:

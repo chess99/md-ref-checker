@@ -1,11 +1,11 @@
 """Test cases for the utils module."""
 from typing import TYPE_CHECKING
-import os
+
 import pytest
 from md_ref_checker.utils import FileSystem
 
 if TYPE_CHECKING:
-    from pytest_mock import MockerFixture
+    pass  # No type checking imports needed
 
 
 @pytest.fixture
@@ -113,7 +113,8 @@ node_modules/
     }
     
     # 测试查找图片文件
-    image_files = set(fs.find_files(pattern=("*.png", "*.jpg", "*.jpeg", "*.gif", "*.svg")))
+    image_patterns = ("*.png", "*.jpg", "*.jpeg", "*.gif", "*.svg")
+    image_files = set(fs.find_files(pattern=image_patterns))
     assert image_files == {
         "assets/img1.png",
         "assets/img2.jpg",
