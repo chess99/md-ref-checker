@@ -27,4 +27,6 @@ repos:
       additional_dependencies:
         - types-click
         - pytest>=7.0.0
+        - pytest-cov>=4.0.0
+        - types-setuptools
         - markdown-it-py>=3.0.0

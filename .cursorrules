@@ -34,6 +34,8 @@
 - Implement robust error handling and logging
 - Follow code style with Ruff
 - Use appropriate libraries when necessary
+- **Ensure all linting checks pass after changes**
+- **Run full test suite after modifications**
 
 ## Testing
 
@@ -45,7 +47,7 @@
 
   ```python
   from _pytest.capture import CaptureFixture
-  from _pytest.fixtures import FixtureRequest 
+  from _pytest.fixtures import FixtureRequest
   from _pytest.logging import LogCaptureFixture
   from _pytest.monkeypatch import MonkeyPatch
   from pytest_mock.plugin import MockerFixture
@@ -59,6 +61,7 @@
 ## CI/CD
 
 - Implement with GitHub Actions or GitLab CI
+- **Verify all CI checks pass after each commit**
 
 ## Documentation
 

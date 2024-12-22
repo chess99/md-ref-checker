@@ -5,11 +5,12 @@ from pathlib import Path
 from typing import TYPE_CHECKING
 
 import pytest
+from pytest import CaptureFixture
 
 from md_ref_checker.utils import FileSystem
 
 if TYPE_CHECKING:
-    from _pytest.capture import CaptureFixture
+    pass
 
 
 @pytest.fixture
@@ -94,9 +95,7 @@ def test_file_system_file_exists(temp_dir: Path) -> None:
     assert not fs.file_exists("nonexistent.md")
 
 
-def test_file_system_debug_output(
-    temp_dir: Path, capsys: "CaptureFixture[str]"
-) -> None:
+def test_file_system_debug_output(temp_dir: Path, capsys: CaptureFixture[str]) -> None:
     """Test debug output."""
     fs = FileSystem(str(temp_dir), debug=True)
     fs.should_ignore("test.md")  # This method has debug output
