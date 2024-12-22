@@ -21,15 +21,42 @@ class ReferenceChecker:
         # 获取引用文件的目录
         source_dir = os.path.dirname(ref.source_file)
         
+        # 生成父目录路径列表
+        parent_paths = []
+        if source_dir:
+            parts = source_dir.split(os.path.sep)
+            for i in range(len(parts)):
+                parent_path = os.path.normpath(os.path.join(*(['.'] + ['..'] * i), ref.target))
+                parent_paths.append(parent_path)
+        
         # 尝试不同的路径组合
         possible_paths = [
-            # 相对于源文件的路径
-            os.path.normpath(os.path.join(source_dir, ref.target)),
-            # 直接使用目标路径
+            # 相对于源文件的路径（保持原始路径）
             ref.target,
+            # 相对于源文件的路径（规范化）
+            os.path.normpath(os.path.join(source_dir, ref.target)),
             # 如果是图片，尝试在assets目录下查找
             os.path.join("assets", ref.target) if ref.is_image else None,
+            # 尝试在根目录查找
+            os.path.basename(ref.target),
         ]
+        
+        # 添加父目录路径
+        possible_paths.extend(parent_paths)
+        
+        # 如果是简单引用（没有路径分隔符），在每个目录中递归查找
+        if not any(sep in ref.target for sep in ['/', '\\']):
+            for root, _, files in os.walk(self.fs.root_dir):
+                rel_root = os.path.relpath(root, self.fs.root_dir)
+                if rel_root == '.':
+                    rel_root = ''
+                
+                # 跳过被忽略的目录
+                if self.fs.should_ignore(rel_root):
+                    continue
+                
+                # 添加当前目录下的可能路径
+                possible_paths.append(os.path.join(rel_root, ref.target))
         
         # 尝试不同的扩展名
         extensions = [".md"] if not ref.is_image else ["", ".png", ".jpg", ".jpeg", ".gif", ".svg", ".webp"]
@@ -38,10 +65,13 @@ class ReferenceChecker:
             if not path:
                 continue
             
+            # 规范化路径
+            path = self.fs.normalize_path(path)
+            
             # 如果路径已经有扩展名，直接检查
             if os.path.splitext(path)[1]:
                 if self.fs.file_exists(path) and not self.fs.should_ignore(path):
-                    return self.fs.normalize_path(path)
+                    return path
                 continue
             
             # 尝试不同的扩展名

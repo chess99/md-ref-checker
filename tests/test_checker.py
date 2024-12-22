@@ -115,6 +115,24 @@ def test_nested_references(checker, tmp_path):
     assert not result.invalid_refs  # 所有引用都应该是有效的
 
 
+def test_cross_directory_references(checker, tmp_path):
+    """Test handling of references across different directories."""
+    # 创建测试目录结构，模拟实际场景
+    (tmp_path / "dir1/subdir1").mkdir(parents=True)
+    (tmp_path / "dir2/subdir2").mkdir(parents=True)
+    
+    # 在一个深层目录中引用另一个目录的文件
+    (tmp_path / "dir1/subdir1/source.md").write_text("""
+Reference to [[../../dir2/subdir2/target]]
+Reference to [[target]]
+""")
+    (tmp_path / "dir2/subdir2/target.md").write_text("Target content")
+    
+    result = checker.check_file("dir1/subdir1/source.md")
+    
+    assert not result.invalid_refs  # 两种引用方式都应该有效
+
+
 def test_image_references(checker, tmp_path):
     """Test handling of image references."""
     # 创建测试文件结构
@@ -153,3 +171,20 @@ Some content
     # 注意：我们不检查标题是否存在，只检查文件是否存在
     assert len(result.invalid_refs) == 1
     assert result.invalid_refs[0].target == "missing"
+
+
+def test_reference_search_order(checker, tmp_path):
+    """Test the order of searching for referenced files."""
+    # 创建测试目录结构
+    (tmp_path / "dir1/subdir").mkdir(parents=True)
+    (tmp_path / "dir2").mkdir()
+    
+    # 创建测试文件
+    (tmp_path / "dir1/subdir/source.md").write_text("""
+[[target]]  # 应该先在当前目录查找，然后在其他目录查找
+""")
+    (tmp_path / "dir1/subdir/target.md").write_text("Local target")
+    (tmp_path / "dir2/target.md").write_text("Remote target")
+    
+    result = checker.check_file("dir1/subdir/source.md")
+    assert not result.invalid_refs  # 应该找到本地的target.md
