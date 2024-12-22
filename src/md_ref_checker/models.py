@@ -1,11 +1,13 @@
 """Data models for the Markdown reference checker."""
+
 from dataclasses import dataclass, field
-from typing import Set, List, Tuple
+from typing import List, Set, Tuple
 
 
 @dataclass(frozen=True)
 class Reference:
     """Represents a reference in a Markdown file."""
+
     source_file: str
     target: str
     line_number: int
@@ -26,19 +28,22 @@ class Reference:
         )
 
     def __hash__(self) -> int:
-        return hash((
-            self.source_file,
-            self.target,
-            self.line_number,
-            self.column,
-            self.line_content,
-            self.is_image,
-        ))
+        return hash(
+            (
+                self.source_file,
+                self.target,
+                self.line_number,
+                self.column,
+                self.line_content,
+                self.is_image,
+            )
+        )
 
 
 @dataclass
 class FileStats:
     """Statistics about references for a single file."""
+
     incoming_count: int = 0
     outgoing_refs: Set[Reference] = field(default_factory=set)
 
@@ -54,6 +59,7 @@ class FileStats:
 @dataclass
 class CheckResult:
     """Results of checking references in a directory."""
+
     invalid_refs: List[Reference] = field(default_factory=list)
     unused_images: Set[str] = field(default_factory=set)
     unidirectional_links: List[Tuple[str, str]] = field(default_factory=list)
@@ -70,7 +76,7 @@ class CheckResult:
         """Add a unidirectional link."""
         self.unidirectional_links.append((source, target))
 
-    def merge(self, other: 'CheckResult') -> 'CheckResult':
+    def merge(self, other: "CheckResult") -> "CheckResult":
         """Merge another CheckResult into this one."""
         result = CheckResult()
         result.invalid_refs.extend(self.invalid_refs)

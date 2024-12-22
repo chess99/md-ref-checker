@@ -1,4 +1,5 @@
 """Markdown reference checker package."""
+
 from importlib.metadata import version
 
 from .checker import ReferenceChecker

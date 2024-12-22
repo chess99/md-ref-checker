@@ -1,190 +1,221 @@
-"""Test cases for the checker module."""
+"""Test cases for checker module."""
+
+from pathlib import Path
 from typing import TYPE_CHECKING
+
 import pytest
+
 from md_ref_checker.checker import ReferenceChecker
-from md_ref_checker.models import Reference
 
 if TYPE_CHECKING:
-    from pytest_mock import MockerFixture
+    pass
 
 
 @pytest.fixture
-def checker(tmp_path):
+def temp_dir(tmp_path: Path) -> Path:
+    """Create a temporary directory for testing."""
+    return tmp_path
+
+
+@pytest.fixture
+def checker(temp_dir: Path) -> ReferenceChecker:
     """Create a ReferenceChecker instance with a temporary directory."""
-    return ReferenceChecker(str(tmp_path))
+    return ReferenceChecker(str(temp_dir))
 
 
-def test_check_single_file(checker, tmp_path):
+def test_check_single_file(checker: ReferenceChecker, temp_dir: Path) -> None:
     """Test checking a single file with valid and invalid references."""
-    # 创建测试文件
-    (tmp_path / "doc1.md").write_text("""
+    # Create test files
+    (temp_dir / "doc1.md").write_text(
+        """
 Here's a valid reference [[doc2]]
 And an invalid one [[nonexistent]]
 Also a valid image ![[image.png]]
 And an invalid image ![[missing.png]]
-""")
-    (tmp_path / "doc2.md").write_text("Some content")
-    (tmp_path / "image.png").touch()
-    
+"""
+    )
+    (temp_dir / "doc2.md").write_text("Some content")
+    (temp_dir / "image.png").touch()
+
     result = checker.check_file("doc1.md")
-    
-    # 检查无效引用
+
+    # Check invalid references
     assert len(result.invalid_refs) == 2
     invalid_targets = {ref.target for ref in result.invalid_refs}
     assert invalid_targets == {"nonexistent", "missing.png"}
 
 
-def test_check_directory(checker, tmp_path):
+def test_check_directory(checker: ReferenceChecker, temp_dir: Path) -> None:
     """Test checking an entire directory."""
-    # 创建测试文件结构
-    (tmp_path / "doc1.md").write_text("""
+    # Create test files
+    (temp_dir / "doc1.md").write_text(
+        """
 Reference to [[doc2]]
 Invalid reference [[nonexistent]]
-""")
-    (tmp_path / "doc2.md").write_text("""
+"""
+    )
+    (temp_dir / "doc2.md").write_text(
+        """
 Back reference to [[doc1]]
 Image reference ![[image.png]]
-""")
-    (tmp_path / "image.png").touch()
-    (tmp_path / "unused.png").touch()
-    
+"""
+    )
+    (temp_dir / "image.png").touch()
+    (temp_dir / "unused.png").touch()
+
     result = checker.check_directory()
-    
-    # 检查无效引用
+
+    # Check invalid references
     assert len(result.invalid_refs) == 1
     assert result.invalid_refs[0].target == "nonexistent"
-    
-    # 检查未使用的图片
+
+    # Check unused images
     assert result.unused_images == {"unused.png"}
-    
-    # 检查单向链接
-    assert not result.unidirectional_links  # doc1 和 doc2 互相引用
+
+    # Check unidirectional links
+    assert not result.unidirectional_links  # doc1 and doc2 reference each other
 
 
-def test_unidirectional_links(checker, tmp_path):
+def test_unidirectional_links(checker: ReferenceChecker, temp_dir: Path) -> None:
     """Test detection of unidirectional links."""
-    # 创建测试文件
-    (tmp_path / "doc1.md").write_text("Reference to [[doc2]]")
-    (tmp_path / "doc2.md").write_text("No back reference")
-    
+    # Create test files
+    (temp_dir / "doc1.md").write_text("Reference to [[doc2]]")
+    (temp_dir / "doc2.md").write_text("No back reference")
+
     result = checker.check_directory()
-    
+
     assert len(result.unidirectional_links) == 1
     assert result.unidirectional_links[0] == ("doc1.md", "doc2.md")
 
 
-def test_ignore_patterns(checker, tmp_path):
+def test_ignore_patterns(checker: ReferenceChecker, temp_dir: Path) -> None:
     """Test that ignored files are not checked."""
-    # 创建.gitignore
-    (tmp_path / ".gitignore").write_text("""
+    # Create .gitignore
+    (temp_dir / ".gitignore").write_text(
+        """
 /ignored/
 temp.md
-""")
-    
-    # 创建测试文件
-    (tmp_path / "doc.md").write_text("""
+"""
+    )
+
+    # Create test files
+    (temp_dir / "doc.md").write_text(
+        """
 [[ignored/doc]]
 [[temp]]
-""")
-    (tmp_path / "ignored").mkdir()
-    (tmp_path / "ignored/doc.md").write_text("Should be ignored")
-    (tmp_path / "temp.md").write_text("Should be ignored")
-    
-    # 重新创建checker以加载ignore文件
-    checker = ReferenceChecker(str(tmp_path))
+"""
+    )
+    (temp_dir / "ignored").mkdir()
+    (temp_dir / "ignored/doc.md").write_text("Should be ignored")
+    (temp_dir / "temp.md").write_text("Should be ignored")
+
+    # Recreate checker to load ignore file
+    checker = ReferenceChecker(str(temp_dir))
     result = checker.check_directory()
-    
-    # 引用被忽略的文件应该被视为无效
+
+    # References to ignored files should be invalid
     assert len(result.invalid_refs) == 2
 
 
-def test_nested_references(checker, tmp_path):
+def test_nested_references(checker: ReferenceChecker, temp_dir: Path) -> None:
     """Test handling of nested directory references."""
-    # 创建测试目录结构
-    (tmp_path / "dir1").mkdir()
-    (tmp_path / "dir1/doc1.md").write_text("""
+    # Create test directory structure
+    (temp_dir / "dir1").mkdir()
+    (temp_dir / "dir1/doc1.md").write_text(
+        """
 [[../dir2/doc2]]
 [[doc3]]
-""")
-    (tmp_path / "dir2").mkdir()
-    (tmp_path / "dir2/doc2.md").write_text("Some content")
-    (tmp_path / "dir1/doc3.md").write_text("Some content")
-    
+"""
+    )
+    (temp_dir / "dir2").mkdir()
+    (temp_dir / "dir2/doc2.md").write_text("Some content")
+    (temp_dir / "dir1/doc3.md").write_text("Some content")
+
     result = checker.check_file("dir1/doc1.md")
-    
-    assert not result.invalid_refs  # 所有引用都应该是有效的
+
+    assert not result.invalid_refs  # All references should be valid
 
 
-def test_cross_directory_references(checker, tmp_path):
+def test_cross_directory_references(checker: ReferenceChecker, temp_dir: Path) -> None:
     """Test handling of references across different directories."""
-    # 创建测试目录结构，模拟实际场景
-    (tmp_path / "dir1/subdir1").mkdir(parents=True)
-    (tmp_path / "dir2/subdir2").mkdir(parents=True)
-    
-    # 在一个深层目录中引用另一个目录的文件
-    (tmp_path / "dir1/subdir1/source.md").write_text("""
+    # Create test directory structure
+    (temp_dir / "dir1/subdir1").mkdir(parents=True)
+    (temp_dir / "dir2/subdir2").mkdir(parents=True)
+
+    # Reference a file in another directory
+    (temp_dir / "dir1/subdir1/source.md").write_text(
+        """
 Reference to [[../../dir2/subdir2/target]]
 Reference to [[target]]
-""")
-    (tmp_path / "dir2/subdir2/target.md").write_text("Target content")
-    
+"""
+    )
+    (temp_dir / "dir2/subdir2/target.md").write_text("Target content")
+
     result = checker.check_file("dir1/subdir1/source.md")
-    
-    assert not result.invalid_refs  # 两种引用方式都应该有效
+
+    assert not result.invalid_refs  # Both reference styles should be valid
 
 
-def test_image_references(checker, tmp_path):
+def test_image_references(checker: ReferenceChecker, temp_dir: Path) -> None:
     """Test handling of image references."""
-    # 创建测试文件结构
-    (tmp_path / "assets").mkdir()
-    (tmp_path / "assets/image1.png").touch()
-    (tmp_path / "assets/image2.jpg").touch()
-    (tmp_path / "doc.md").write_text("""
+    # Create test files
+    (temp_dir / "assets").mkdir()
+    (temp_dir / "assets/image1.png").touch()
+    (temp_dir / "assets/image2.jpg").touch()
+    (temp_dir / "doc.md").write_text(
+        """
 ![[assets/image1.png]]
 ![Regular markdown](assets/image2.jpg)
 ![[missing.png]]
-""")
-    
+"""
+    )
+
     result = checker.check_file("doc.md")
-    
-    # 只有missing.png应该被报告为无效
+
+    # Only missing.png should be reported as invalid
     assert len(result.invalid_refs) == 1
     assert result.invalid_refs[0].target == "missing.png"
 
 
-def test_reference_with_heading(checker, tmp_path):
+def test_reference_with_heading(checker: ReferenceChecker, temp_dir: Path) -> None:
     """Test handling of references with heading anchors."""
-    # 创建测试文件
-    (tmp_path / "doc1.md").write_text("""
+    # Create test files
+    (temp_dir / "doc1.md").write_text(
+        """
 [[doc2#heading1]]
 [[doc2#nonexistent]]
 [[missing#heading]]
-""")
-    (tmp_path / "doc2.md").write_text("""
+"""
+    )
+    (temp_dir / "doc2.md").write_text(
+        """
 # heading1
 Some content
-""")
-    
+"""
+    )
+
     result = checker.check_file("doc1.md")
-    
-    # 只有missing#heading应该被报告为无效
-    # 注意：我们不检查标题是否存在，只检查文件是否存在
+
+    # Only missing#heading should be invalid
+    # Note: We don't check if headings exist, only if files exist
     assert len(result.invalid_refs) == 1
     assert result.invalid_refs[0].target == "missing"
 
 
-def test_reference_search_order(checker, tmp_path):
+def test_reference_search_order(checker: ReferenceChecker, temp_dir: Path) -> None:
     """Test the order of searching for referenced files."""
-    # 创建测试目录结构
-    (tmp_path / "dir1/subdir").mkdir(parents=True)
-    (tmp_path / "dir2").mkdir()
-    
-    # 创建测试文件
-    (tmp_path / "dir1/subdir/source.md").write_text("""
-[[target]]  # 应该先在当前目录查找，然后在其他目录查找
-""")
-    (tmp_path / "dir1/subdir/target.md").write_text("Local target")
-    (tmp_path / "dir2/target.md").write_text("Remote target")
-    
+    # Create test directory structure
+    (temp_dir / "dir1/subdir").mkdir(parents=True)
+    (temp_dir / "dir2").mkdir()
+
+    # Create test files
+    (temp_dir / "dir1/subdir/source.md").write_text(
+        """
+[[target]]  # Should find local target first
+"""
+    )
+    (temp_dir / "dir1/subdir/target.md").write_text("Local target")
+    (temp_dir / "dir2/target.md").write_text("Remote target")
+
     result = checker.check_file("dir1/subdir/source.md")
-    assert not result.invalid_refs  # 应该找到本地的target.md
+    assert not result.invalid_refs  # Should find the local target.md

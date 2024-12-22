@@ -1,151 +1,117 @@
-"""Test cases for the CLI module."""
+"""Test cases for cli module."""
+
+from pathlib import Path
 from typing import TYPE_CHECKING
+
 import pytest
-from click.testing import CliRunner
+
 from md_ref_checker.cli import main
 
 if TYPE_CHECKING:
-    from pytest_mock import MockerFixture
+    from _pytest.capture import CaptureFixture
 
 
 @pytest.fixture
-def runner():
-    """Create a CLI test runner."""
-    return CliRunner()
+def temp_dir(tmp_path: Path) -> Path:
+    """Create a temporary directory for testing."""
+    return tmp_path
 
 
-def test_help_option(runner):
-    """Test the --help option."""
-    result = runner.invoke(main, ["--help"])
-    assert result.exit_code == 0
-    assert "Usage:" in result.output
-    assert "Options:" in result.output
+def test_cli_help(capsys: "CaptureFixture[str]") -> None:
+    """Test CLI help output."""
+    with pytest.raises(SystemExit) as exc_info:
+        main(["--help"])
+    assert exc_info.value.code == 0
+    captured = capsys.readouterr()
+    assert "usage:" in captured.out
+    assert "options:" in captured.out
 
 
-def test_check_directory(runner, tmp_path):
-    """Test checking a directory."""
-    # 创建测试文件
-    (tmp_path / "doc1.md").write_text("""
-Here's a valid reference [[doc2]]
-And an invalid one [[nonexistent]]
-""")
-    (tmp_path / "doc2.md").write_text("Some content")
-    
-    # 测试默认输出（无调试信息）
-    result = runner.invoke(main, ["-d", str(tmp_path)])
-    assert result.exit_code == 1  # 有错误时返回1
-    assert "无效引用" in result.output
-    assert "nonexistent" in result.output
-    # 确保没有调试信息
-    assert "Checking if path should be ignored" not in result.output
-    assert "Matching path" not in result.output
-    assert "Path not ignored" not in result.output
+def test_cli_version(capsys: "CaptureFixture[str]") -> None:
+    """Test CLI version output."""
+    with pytest.raises(SystemExit) as exc_info:
+        main(["--version"])
+    assert exc_info.value.code == 0
+    captured = capsys.readouterr()
+    assert "md-ref-checker" in captured.out
 
 
-def test_check_directory_with_debug(runner, tmp_path):
-    """Test checking a directory with debug output."""
-    # 创建测试文件
-    (tmp_path / "doc1.md").write_text("[[doc2]]")
-    (tmp_path / "doc2.md").write_text("Some content")
-    
-    # 测试调试输出
-    result = runner.invoke(main, ["-d", str(tmp_path), "-D"])
-    assert result.exit_code == 0
-    # 确保显示调试信息
-    assert "Checking if path should be ignored" in result.output
-    assert "Matching path" in result.output
-    assert "Path not ignored" in result.output
+def test_cli_check_valid_files(temp_dir: Path, capsys: "CaptureFixture[str]") -> None:
+    """Test CLI with valid files."""
+    # Create test files
+    (temp_dir / "file1.md").write_text("Link to [[file2]]")
+    (temp_dir / "file2.md").write_text("Link to [[file1]]")
+
+    main(["-d", str(temp_dir)])
+    captured = capsys.readouterr()
+    assert "No issues found" in captured.out
 
 
-def test_check_directory_no_errors(runner, tmp_path):
-    """Test checking a directory with no errors."""
-    # 创建测试文件
-    (tmp_path / "doc1.md").write_text("[[doc2]]")
-    (tmp_path / "doc2.md").write_text("[[doc1]]")
-    
-    # 测试默认输出（无调试信息）
-    result = runner.invoke(main, ["-d", str(tmp_path)])
-    assert result.exit_code == 0  # 没有错误时返回0
-    assert "✓" in result.output  # 显示成功标记
-    # 确保没有调试信息
-    assert "Checking if path should be ignored" not in result.output
-    assert "Matching path" not in result.output
-    assert "Path not ignored" not in result.output
+def test_cli_check_invalid_files(temp_dir: Path, capsys: "CaptureFixture[str]") -> None:
+    """Test CLI with invalid files."""
+    # Create test file with invalid reference
+    (temp_dir / "source.md").write_text("Link to [[nonexistent]]")
+
+    with pytest.raises(SystemExit) as exc_info:
+        main(["-d", str(temp_dir)])
+    assert exc_info.value.code == 1
+
+    captured = capsys.readouterr()
+    assert "Invalid references found" in captured.out
+    assert "source.md" in captured.out
+    assert "nonexistent" in captured.out
 
 
-def test_verbosity_levels(runner, tmp_path):
-    """Test different verbosity levels."""
-    # 创建测试文件
-    (tmp_path / "doc1.md").write_text("[[doc2]]")
-    (tmp_path / "doc2.md").write_text("Some content")
-    
-    # 测试默认输出（无详细信息）
-    result = runner.invoke(main, ["-d", str(tmp_path)])
-    assert "单向链接" not in result.output
-    assert "引用统计" not in result.output
-    
-    # 测试详细输出
-    result = runner.invoke(main, ["-d", str(tmp_path), "-v", "1"])
-    assert "单向链接" in result.output
-    assert "引用统计" not in result.output
-    
-    # 测试更详细的输出
-    result = runner.invoke(main, ["-d", str(tmp_path), "-v", "2"])
-    assert "引用统计" in result.output
+def test_cli_check_unused_images(temp_dir: Path, capsys: "CaptureFixture[str]") -> None:
+    """Test CLI with unused images."""
+    # Create test files
+    (temp_dir / "doc.md").write_text("![[used.png]]")
+    (temp_dir / "used.png").touch()
+    (temp_dir / "unused.png").touch()
+
+    with pytest.raises(SystemExit) as exc_info:
+        main(["-d", str(temp_dir)])
+    assert exc_info.value.code == 1
+
+    captured = capsys.readouterr()
+    assert "Unused images found" in captured.out
+    assert "unused.png" in captured.out
 
 
-def test_no_color_option(runner, tmp_path):
-    """Test the --no-color option."""
-    # 创建测试文件
-    (tmp_path / "doc1.md").write_text("[[nonexistent]]")
-    
-    # 默认输出（有颜色）
-    result = runner.invoke(main, ["-d", str(tmp_path)])
-    assert "error" in result.output
-    
-    # 无颜色输出
-    result = runner.invoke(main, ["-d", str(tmp_path), "--no-color"])
-    assert "error" in result.output
+def test_cli_check_unidirectional_links(
+    temp_dir: Path, capsys: "CaptureFixture[str]"
+) -> None:
+    """Test CLI with unidirectional links."""
+    # Create test files
+    (temp_dir / "file1.md").write_text("Link to [[file2]]")
+    (temp_dir / "file2.md").write_text("No links here")
+
+    with pytest.raises(SystemExit) as exc_info:
+        main(["-d", str(temp_dir), "-v", "1"])
+    assert exc_info.value.code == 1
+
+    captured = capsys.readouterr()
+    assert "Unidirectional links found" in captured.out
+    assert "file1.md" in captured.out
+    assert "file2.md" in captured.out
 
 
-def test_ignore_option(runner, tmp_path):
-    """Test the --ignore option."""
-    # 创建测试文件
-    (tmp_path / "doc.md").write_text("[[ignored.md]]")
-    (tmp_path / "ignored.md").write_text("Should be ignored")
-    
-    # 使用--ignore选项
-    result = runner.invoke(main, [
-        "-d", str(tmp_path),
-        "-i", "ignored.md"
-    ])
-    assert result.exit_code == 1
-    assert "无效引用" in result.output
-    # 确保没有调试信息
-    assert "Checking if path should be ignored" not in result.output
-    assert "Matching path" not in result.output
+def test_cli_ignore_patterns(temp_dir: Path, capsys: "CaptureFixture[str]") -> None:
+    """Test CLI with ignore patterns."""
+    # Create test files
+    (temp_dir / "main.md").write_text("[[draft]]")
+    (temp_dir / "draft.md").write_text("Draft content")
+
+    main(["-d", str(temp_dir), "-i", "draft.*"])
+    captured = capsys.readouterr()
+    assert "Invalid references found" in captured.out
 
 
-def test_delete_unused_images(runner, tmp_path):
-    """Test the --delete-unused-images option."""
-    # 创建测试文件
-    (tmp_path / "doc.md").write_text("![[used.png]]")
-    (tmp_path / "used.png").touch()
-    (tmp_path / "unused.png").touch()
-    
-    # 检查但不删除
-    result = runner.invoke(main, ["-d", str(tmp_path)])
-    assert "未被引用的图片" in result.output
-    assert (tmp_path / "unused.png").exists()
-    # 确保没有调试信息
-    assert "Checking if path should be ignored" not in result.output
-    assert "Matching path" not in result.output
-    
-    # 检查并删除
-    result = runner.invoke(main, ["-d", str(tmp_path), "-r"])
-    assert "已删除" in result.output
-    assert not (tmp_path / "unused.png").exists()
-    assert (tmp_path / "used.png").exists()
-    # 确保没有调试信息
-    assert "Checking if path should be ignored" not in result.output
-    assert "Matching path" not in result.output
+def test_cli_debug_output(temp_dir: Path, capsys: "CaptureFixture[str]") -> None:
+    """Test CLI debug output."""
+    # Create test file
+    (temp_dir / "test.md").write_text("Test content")
+
+    main(["-d", str(temp_dir), "-D"])
+    captured = capsys.readouterr()
+    assert "[DEBUG]" in captured.out

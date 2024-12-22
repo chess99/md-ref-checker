@@ -110,7 +110,32 @@ if result.unidirectional_links:
 
 ## 开发
 
-### 运行测试
+项目使用 `pre-commit` 钩子和 `make` 命令来简化开发流程。
+
+#### 初始化开发环境
+
+```bash
+# 安装所有依赖并设置 pre-commit 钩子
+make install
+```
+
+#### 常用命令
+
+```bash
+# 格式化代码
+make format
+
+# 运行所有代码检查
+make lint
+
+# 运行测试
+make test
+
+# 清理临时文件和缓存
+make clean
+```
+
+#### 运行测试
 
 ```bash
 # 运行所有测试
@@ -123,22 +148,28 @@ pytest tests/test_models.py
 pytest --cov=md_ref_checker
 ```
 
-### 代码风格
+#### 代码质量工具
 
 项目使用以下工具保证代码质量：
 
 - Black: 代码格式化
-- Ruff: 代码检查
+- Ruff: 代码检查和导入排序
 - MyPy: 类型检查
+- pre-commit: Git 提交前自动运行检查
+
+所有这些检查都会在提交代码时自动运行。你也可以手动运行它们：
 
 ```bash
-# 格式化代码
+# 手动运行 pre-commit 检查
+pre-commit run --all-files
+
+# 单独运行格式化
 black src tests
 
-# 运行代码检查
+# 单独运行代码检查
 ruff check src tests
 
-# 运行类型检查
+# 单独运行类型检查
 mypy src tests
 ```
 
@@ -154,4 +185,4 @@ mypy src tests
 
 ## 许可证
 
-本项目采用 MIT 许可证 - 详见 [LICENSE](LICENSE) 文件。 
+本项目采用 MIT 许可证 - 详见 [LICENSE](LICENSE) 文件。

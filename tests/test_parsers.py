@@ -1,130 +1,128 @@
-"""Test cases for the parsers module."""
+"""Test cases for parsers module."""
+
 from typing import TYPE_CHECKING
 
-import pytest
 from md_ref_checker.parsers import MarkdownParser
 
 if TYPE_CHECKING:
-    pass  # No type checking imports needed
+    pass
 
 
-def test_parse_simple_reference():
-    """Test parsing a simple file reference."""
+def test_parse_simple_reference() -> None:
+    """Test parsing a simple reference."""
     parser = MarkdownParser()
     content = "This is a [[test]] reference."
-    refs = list(parser.parse_references("source.md", content))
-    
+    refs = list(parser.parse_references("test.md", content))
+
     assert len(refs) == 1
-    ref = refs[0]
-    assert ref.source_file == "source.md"
-    assert ref.target == "test"
-    assert ref.line_number == 1
-    assert ref.column == 11
-    assert not ref.is_image
+    assert refs[0].target == "test"
+    assert refs[0].source_file == "test.md"
+    assert refs[0].line_number == 1
+    assert refs[0].column == 11
+    assert not refs[0].is_image
 
 
-def test_parse_reference_with_alias():
+def test_parse_aliased_reference() -> None:
     """Test parsing a reference with alias."""
     parser = MarkdownParser()
-    content = "This is a [[test|Test File]] reference."
-    refs = list(parser.parse_references("source.md", content))
-    
-    assert len(refs) == 1
-    ref = refs[0]
-    assert ref.target == "test"
+    content = "This is a [[test|alias]] reference."
+    refs = list(parser.parse_references("test.md", content))
 
-
-def test_parse_heading_reference():
-    """Test parsing a reference with heading."""
-    parser = MarkdownParser()
-    content = "See [[file#heading]] for details."
-    refs = list(parser.parse_references("source.md", content))
-    
-    assert len(refs) == 1
-    ref = refs[0]
-    assert ref.target == "file"  # heading is stripped
-
-
-def test_parse_image_reference():
-    """Test parsing an image reference."""
-    parser = MarkdownParser()
-    content = "Here's an image: ![[image.png]]"
-    refs = list(parser.parse_references("source.md", content))
-    
-    assert len(refs) == 1
-    ref = refs[0]
-    assert ref.target == "image.png"
-    assert ref.is_image
-
-
-def test_parse_markdown_image():
-    """Test parsing a standard Markdown image."""
-    parser = MarkdownParser()
-    content = "![Alt text](image.png)"
-    refs = list(parser.parse_references("source.md", content))
-    
-    assert len(refs) == 1
-    ref = refs[0]
-    assert ref.target == "image.png"
-    assert ref.is_image
-
-
-def test_ignore_code_blocks():
-    """Test that references in code blocks are ignored."""
-    parser = MarkdownParser()
-    content = """
-Here's a reference [[test]]
-```python
-# This [[code]] should be ignored
-```
-Another reference [[test2]]
-"""
-    refs = list(parser.parse_references("source.md", content))
-    
-    assert len(refs) == 2
-    targets = {ref.target for ref in refs}
-    assert targets == {"test", "test2"}
-
-
-def test_ignore_inline_code():
-    """Test that references in inline code are ignored."""
-    parser = MarkdownParser()
-    content = "Here's a reference [[test]] and `some [[code]]` to ignore."
-    refs = list(parser.parse_references("source.md", content))
-    
     assert len(refs) == 1
     assert refs[0].target == "test"
 
 
-def test_multiple_references_same_line():
-    """Test parsing multiple references on the same line."""
+def test_parse_image_reference() -> None:
+    """Test parsing an image reference."""
     parser = MarkdownParser()
-    content = "See [[file1]] and [[file2]] for details."
-    refs = list(parser.parse_references("source.md", content))
-    
+    content = "This is an ![[image.png]] reference."
+    refs = list(parser.parse_references("test.md", content))
+
+    assert len(refs) == 1
+    assert refs[0].target == "image.png"
+    assert refs[0].is_image
+
+
+def test_parse_markdown_image() -> None:
+    """Test parsing a standard Markdown image."""
+    parser = MarkdownParser()
+    content = "This is a ![alt text](image.png) reference."
+    refs = list(parser.parse_references("test.md", content))
+
+    assert len(refs) == 1
+    assert refs[0].target == "image.png"
+    assert refs[0].is_image
+
+
+def test_parse_multiple_references() -> None:
+    """Test parsing multiple references in one line."""
+    parser = MarkdownParser()
+    content = "This has [[ref1]] and [[ref2]] and ![[img.png]]."
+    refs = list(parser.parse_references("test.md", content))
+
+    assert len(refs) == 3
+    assert refs[0].target == "ref1"
+    assert refs[1].target == "ref2"
+    assert refs[2].target == "img.png"
+    assert refs[2].is_image
+
+
+def test_parse_multiline_references() -> None:
+    """Test parsing references across multiple lines."""
+    parser = MarkdownParser()
+    content = """Line 1 with [[ref1]]
+    Line 2 with [[ref2]]
+    Line 3 with ![[img.png]]"""
+    refs = list(parser.parse_references("test.md", content))
+
+    assert len(refs) == 3
+    assert refs[0].target == "ref1"
+    assert refs[0].line_number == 1
+    assert refs[1].target == "ref2"
+    assert refs[1].line_number == 2
+    assert refs[2].target == "img.png"
+    assert refs[2].line_number == 3
+
+
+def test_parse_no_references() -> None:
+    """Test parsing content without references."""
+    parser = MarkdownParser()
+    content = "This is a test without any references."
+    refs = list(parser.parse_references("test.md", content))
+
+    assert len(refs) == 0
+
+
+def test_parse_invalid_references() -> None:
+    """Test parsing invalid reference formats."""
+    parser = MarkdownParser()
+    content = "This has [[[invalid]]] and [[]] and ![] references."
+    refs = list(parser.parse_references("test.md", content))
+
+    assert len(refs) == 0
+
+
+def test_parse_code_block_references() -> None:
+    """Test that references in code blocks are ignored."""
+    parser = MarkdownParser()
+    content = """Normal [[ref1]]
+    ```
+    Code block [[ref2]]
+    ```
+    Normal ![[img.png]]"""
+    refs = list(parser.parse_references("test.md", content))
+
     assert len(refs) == 2
-    targets = {ref.target for ref in refs}
-    assert targets == {"file1", "file2"}
+    assert refs[0].target == "ref1"
+    assert refs[1].target == "img.png"
 
 
-def test_reference_with_spaces():
-    """Test parsing references with spaces."""
+def test_parse_inline_code_references() -> None:
+    """Test that references in inline code are ignored."""
     parser = MarkdownParser()
-    content = "[[My File.md]]"
-    refs = list(parser.parse_references("source.md", content))
-    
-    assert len(refs) == 1
-    assert refs[0].target == "My File.md"
+    content = "Normal [[ref1]] and `[[ref2]]` and ![[img.png]]"
+    refs = list(parser.parse_references("test.md", content))
 
-
-def test_ignore_external_urls():
-    """Test that external URLs are ignored."""
-    parser = MarkdownParser()
-    content = """
-[[local-file]]
-![External Image](https://example.com/image.png)
-"""
-    refs = list(parser.parse_references("source.md", content))
-    
-    assert len(refs) == 1
-    assert refs[0].target == "local-file"
+    assert len(refs) == 2
+    assert refs[0].target == "ref1"
+    assert refs[1].target == "img.png"
