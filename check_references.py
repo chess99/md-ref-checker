@@ -6,6 +6,7 @@ Markdown 引用检查工具
 
 1. 引用检查：
    - 文档引用 [[文件名]] 或 [[文件名|显示文本]]
+   - 标题引用 [[文件名#标题]] 或 [[文件名#标题1#标题2|显示文本]]
    - 图片引用 ![[图片文件名]]
    - 网络图片引用 ![图片说明](https://图片地址)
    - 检查单向引用：A引用了B，但B没有引用A
@@ -26,20 +27,24 @@ Markdown 引用检查工具
 - 忽略代码块中的引用
 - 忽略行内代码中的引用
 - 正确处理任务列表、普通列表等 Markdown 语法
+- 支持多级标题引用（如 [[文件名#一级标题#二级标题]]）
+- 只检查文件是否存在，不验证标题有效性
 - 支持 .gitignore 和自定义忽略规则
 - 支持详细的错误位置报告（行号、列号）
 
 使用方法：
-    python check_references.py [--dir 目录路径] [-v 详细程度] [--no-color] [--ignore 忽略模式]
+    python check_references.py [-d 目录路径] [-v 详细程度] [-n] [-i 忽略模式] [-r] [-D]
 
 参数：
-    --dir: 要检查的目录路径，默认为当前目录
-    -v: 输出详细程度（0-2），默认为0
+    -d, --dir: 要检查的目录路径，默认为当前目录
+    -v, --verbosity: 输出详细程度（0-2），默认为0
         0: 只显示无效引用和未使用的图片
         1: 显示无效引用、未使用的图片和单向链接
         2: 显示所有引用统计信息
-    --no-color: 禁用彩色输出
-    --ignore: 添加要忽略的文件模式（可多次使用）
+    -n, --no-color: 禁用彩色输出
+    -i, --ignore: 添加要忽略的文件模式（可多次使用）
+    -r, --delete-unused-images: 删除未被引用的图片文件
+    -D, --debug: 显示调试信息
 
 输出示例：
     file.md:10:5  error  无效引用 '不存在的文件'
@@ -48,6 +53,10 @@ Markdown 引用检查工具
 
     未被引用的图片文件:
       assets/unused_image.png
+
+    已删除的未引用图片文件:
+      assets/unused_image.png
+    ✓ 已删除 1 个未引用的图片文件
 
 依赖：
     - markdown-it-py: Markdown 解析器
@@ -74,6 +83,7 @@ class ReferenceChecker:
         self.referenced_images = set()  # 被引用的图片
         self.md = MarkdownIt('commonmark')
         self.ignore_patterns = self._load_ignore_patterns()
+        self.deleted_images = set()  # 记录被删除的图片
 
     def _load_ignore_patterns(self) -> List[str]:
         """加载需要忽略的文件模式"""
@@ -120,10 +130,6 @@ class ReferenceChecker:
         # 规范化路径（使用正斜杠）
         path = path.replace('\\', '/')
         
-        # 移除开头的 ./
-        if path.startswith('./'):
-            path = path[2:]
-        
         for pattern in self.ignore_patterns:
             # 移除开头的 ./
             if pattern.startswith('./'):
@@ -133,35 +139,19 @@ class ReferenceChecker:
             if pattern.endswith('/'):
                 pattern = pattern[:-1]
             
-            # 处理目录通配符模式（以 / 结尾）
-            if pattern.endswith('/*'):
-                dir_pattern = pattern[:-1]  # 移除 *
-                if path.startswith(dir_pattern):
+            # 处理目录模式（不论是否以/结尾都视为目录模式）
+            if os.path.isdir(os.path.join(self.root_dir, pattern)):
+                if path == pattern or path.startswith(pattern + '/'):
                     return True
             
             # 处理文件通配符
             elif '*' in pattern:
                 import fnmatch
-                # 处理 **/ 模式（匹配任意深度的目录）
-                if '**/' in pattern:
-                    pattern = pattern.replace('**/', '')
-                    if fnmatch.fnmatch(os.path.basename(path), pattern):
-                        return True
-                # 普通通配符匹配
-                elif fnmatch.fnmatch(path, pattern):
-                    return True
-            
-            # 处理目录模式（不论是否以/结尾都视为目录模式）
-            elif os.path.isdir(os.path.join(self.root_dir, pattern)):
-                if path == pattern or path.startswith(pattern + '/'):
+                if fnmatch.fnmatch(path, pattern):
                     return True
             
             # 精确匹配
             elif path == pattern:
-                return True
-            
-            # 处理前缀匹配（如 draft_ 开头的文件）
-            elif pattern.endswith('_*') and os.path.basename(path).startswith(pattern[:-1]):
                 return True
         
         return False
@@ -240,42 +230,32 @@ class ReferenceChecker:
 
     def resolve_link(self, link: str, current_file: str, is_image: bool = False) -> str:
         """解析引用链接，处理相对路径"""
+        # 如果链接包含标题引用(#)，只检查文件部分
+        file_part = link.split('#')[0]
+        
         # 如果是绝对路径（以/开头）
-        if link.startswith('/'):
-            link = link.lstrip('/')
+        if file_part.startswith('/'):
+            file_part = file_part.lstrip('/')
         else:
             # 处理相对路径
             current_dir = os.path.dirname(current_file)
             if current_dir:
-                link = os.path.join(current_dir, link)
+                file_part = os.path.join(current_dir, file_part)
         
         # 规范化路径
-        link = self.normalize_path(link)
-        base_link = os.path.splitext(link)[0]  # 不带扩展名的路径
-        base_name = os.path.basename(link)
+        file_part = self.normalize_path(file_part)
+        base_link = os.path.splitext(file_part)[0]  # 不带扩展名的路径
+        base_name = os.path.basename(file_part)
         base_name_no_ext = os.path.splitext(base_name)[0]
-        
-        # 如果是图片引用，优先在assets目录下查找
-        if is_image:
-            # 如果已经在assets目录下，直接返回
-            if link.startswith('assets/'):
-                return link
-            
-            # 尝试在assets目录下查找
-            assets_path = f"assets/{base_name}"
-            if assets_path in self.image_files:
-                return assets_path
-            
-            # 如果在其他位置找到了图片文件，也返回
-            if link in self.image_files:
-                return link
         
         # 检查所有可能的映射
         possible_keys = [
-            link,  # 完整路径
+            file_part,  # 完整路径
             base_link,  # 不带扩展名的完整路径
             base_name,  # 文件名（带扩展名）
             base_name_no_ext,  # 文件名（不带扩展名）
+            f"assets/{base_name}",  # assets/文件名（带扩展名）
+            f"assets/{base_name_no_ext}",  # assets/文件名（不带扩展名）
         ]
         
         # 对于每个可能的键，检查是否存在映射
@@ -285,26 +265,42 @@ class ReferenceChecker:
                 # 如果是图片引用，优先查找图片文件
                 if is_image:
                     # 先尝试查找图片文件
-                    image_files = [f for f in files if f in self.image_files]
+                    image_files = []
+                    for f in files:
+                        if f in self.image_files:
+                            self.referenced_images.add(f)
+                            image_files.append(f)
                     if image_files:
-                        self.referenced_images.add(image_files[0])
                         return image_files[0]
+                    # 如果找不到图片文件，尝试查找其他文件
+                    # 优先返回.md文件
+                    md_files = [f for f in files if f.endswith('.md')]
+                    if md_files:
+                        return md_files[0]
+                    # 如果还是找不到，返回第一个匹配的文件
+                    return files[0]
                 else:
                     # 如果不是图片引用，优先返回.md文件
                     md_files = [f for f in files if f.endswith('.md')]
                     if md_files:
-                        return md_files[0]
-                    # 如果找不到.md文件，返回第一个匹配的文件
-                    if files:
-                        return files[0]
+                        # 如果原始链接包含标题引用，保留它
+                        if '#' in link:
+                            return md_files[0] + link[len(file_part):]
+                        else:
+                            return md_files[0]
+                    # 否则返回第一个匹配的文件
+                    resolved = files[0]
+                    # 如果是图片文件，记录引用
+                    if resolved in self.image_files:
+                        self.referenced_images.add(resolved)
+                    return resolved
         
-        # 如果都找不到，尝试添加.md扩展名（对于非图片引用）
-        if not is_image and not link.endswith('.md'):
-            return f"{link}.md"
-        
-        # 如果是图片引用但找不到文件，尝试添加assets/前缀
-        if is_image and not link.startswith('assets/'):
-            return f"assets/{link}"
+        # 尝试直接在assets目录下查找图片文件
+        if is_image:
+            assets_path = f"assets/{base_name}"
+            if assets_path in self.image_files:
+                self.referenced_images.add(assets_path)
+                return assets_path
         
         # 如果都找不到，返回原始链接
         return link
@@ -418,12 +414,14 @@ class ReferenceChecker:
                 # 处理当前行的引用
                 refs = self.find_references_in_text(line, current_line + 1)
                 for link, line_num, col, line_content, is_image in refs:
-                    resolved_link = self.resolve_link(link, current_file, is_image)
+                    # 只检查文件部分是否存在
+                    file_part = link.split('#')[0]
+                    resolved_link = self.resolve_link(file_part, current_file, is_image)
                     # 如果引用文件应该被忽略，则跳过检查
                     if self._should_ignore(resolved_link):
                         continue
                     all_links.add(resolved_link)
-                    if resolved_link not in self.files:
+                    if resolved_link not in self.files and file_part == resolved_link:
                         invalid.append((link, line_num, col, line_content))
                 
                 current_line += 1
@@ -468,11 +466,12 @@ class ReferenceChecker:
                     if target in self.files and not self._should_ignore(target) and source not in self.reference_stats[target]["outgoing"]:
                         self.unidirectional_links.append((source, target))
 
-    def print_report(self, verbosity: int = 0, no_color: bool = False) -> None:
+    def print_report(self, verbosity: int = 0, no_color: bool = False, debug: bool = False) -> None:
         """打印检查报告"""
         # 颜色代码
         red = '' if no_color else '\x1b[31m'
         yellow = '' if no_color else '\x1b[33m'
+        green = '' if no_color else '\x1b[32m'
         reset = '' if no_color else '\x1b[0m'
         
         if self.invalid_links:
@@ -493,42 +492,40 @@ class ReferenceChecker:
                 print(f"  {image}")
             print(f"\n⚠ 发现 {len(unused_images)} 个未被引用的图片文件")
             
-            # 调试信息
-            print("\n调试信息:")
-            print(f"所有图片文件: {sorted(self.image_files)}")
-            print(f"被引用的图片: {sorted(self.referenced_images)}")
-            print(f"文件映射:")
-            for key, value in self.file_map.items():
-                if any(f.endswith(('.png', '.jpg', '.jpeg', '.gif', '.svg', '.webp')) for f in value):
-                    print(f"  {key}: {value}")
-            
-            # 添加更多调试信息
-            print("\n引用处理详情:")
-            for root, _, files in os.walk(self.root_dir):
-                for file in files:
-                    if file.endswith('.md'):
-                        full_path = os.path.join(root, file)
-                        try:
-                            with open(full_path, 'r', encoding='utf-8') as f:
-                                content = f.read()
-                                # 查找所有可能的图片引用
-                                img_refs = re.finditer(r'!\[\[(.*?)\]\]|\!\[(?:[^\]]*)\]\((?!https?://)[^)]+\)', content)
-                                for match in img_refs:
-                                    matched_text = match.group(0)
-                                    if matched_text.startswith('![['):
-                                        link = match.group(1).split('|')[0].strip()
-                                    else:
-                                        link = re.search(r'\!\[(?:[^\]]*)\]\(([^)]+)\)', matched_text).group(1)
-                                    print(f"  在文件 {full_path} 中找到图片引用: {link}")
-                                    # 显示解析过程
-                                    rel_path = os.path.relpath(full_path, self.root_dir)
-                                    current_file = self.normalize_path(rel_path)
-                                    resolved = self.resolve_link(link, current_file, True)
-                                    print(f"    - 解析为: {resolved}")
-                                    if resolved in self.image_files:
-                                        print(f"    - 匹配图片: {resolved}")
-                        except Exception as e:
-                            print(f"Error reading file {full_path}: {e}")
+            # 只在开启调试模式时打印调试信息
+            if debug:
+                print("\n调试信息:")
+                print(f"所有图片文件: {sorted(self.image_files)}")
+                print(f"被引用的图片: {sorted(self.referenced_images)}")
+                print(f"文件映射:")
+                for key, value in self.file_map.items():
+                    if any(f.endswith(('.png', '.jpg', '.jpeg', '.gif', '.svg', '.webp')) for f in value):
+                        print(f"  {key}: {value}")
+                
+                print("\n引用处理详情:")
+                for root, _, files in os.walk(self.root_dir):
+                    for file in files:
+                        if file.endswith('.md'):
+                            full_path = os.path.join(root, file)
+                            try:
+                                with open(full_path, 'r', encoding='utf-8') as f:
+                                    content = f.read()
+                                    img_refs = re.finditer(r'!\[\[(.*?)\]\]|\!\[(?:[^\]]*)\]\((?!https?://)[^)]+\)', content)
+                                    for match in img_refs:
+                                        matched_text = match.group(0)
+                                        if matched_text.startswith('![['):
+                                            link = match.group(1).split('|')[0].strip()
+                                        else:
+                                            link = re.search(r'\!\[(?:[^\]]*)\]\(([^)]+)\)', matched_text).group(1)
+                                        print(f"  在文件 {full_path} 中找到图片引用: {link}")
+                                        rel_path = os.path.relpath(full_path, self.root_dir)
+                                        current_file = self.normalize_path(rel_path)
+                                        resolved = self.resolve_link(link, current_file, True)
+                                        print(f"    - 解析为: {resolved}")
+                                        if resolved in self.image_files:
+                                            print(f"    - 匹配图片: {resolved}")
+                            except Exception as e:
+                                print(f"Error reading file {full_path}: {e}")
         
         if verbosity >= 1 and self.unidirectional_links:
             print("\n单向链接:")
@@ -543,28 +540,52 @@ class ReferenceChecker:
                     print(f"  - 被引用次数: {stats['incoming']}")
                     print(f"  - 引用其他文件数: {len(stats['outgoing'])}")
                     if stats['outgoing']:
-                        print("  - 引用的文件:")
+                        print("  - 引用其他文件:")
                         for target in sorted(stats['outgoing']):
                             print(f"    * {target}")
+        
+        # 打印已删除的图片文件
+        if self.deleted_images:
+            print(f"\n{green}已删除的未引用图片文件:{reset}")
+            for image in sorted(self.deleted_images):
+                print(f"  {image}")
+            print(f"\n✓ 已删除 {len(self.deleted_images)} 个未引用的图片文件")
+
+    def delete_unused_images(self) -> None:
+        """删除未被引用的图片文件"""
+        unused_images = self.image_files - self.referenced_images
+        for image in unused_images:
+            try:
+                full_path = os.path.join(self.root_dir, image)
+                if os.path.exists(full_path):
+                    os.remove(full_path)
+                    self.deleted_images.add(image)
+            except Exception as e:
+                print(f"Error deleting {image}: {e}")
 
 def main():
     parser = argparse.ArgumentParser(description='Markdown 引用检查工具')
-    parser.add_argument('--dir', type=str, default='.',
+    parser.add_argument('-d', '--dir', type=str, default='.',
                       help='要检查的目录路径 (默认为当前目录)')
     parser.add_argument('-v', '--verbosity', type=int, choices=[0, 1, 2], default=0,
                       help='输出详细程度 (0: 只显示无效引用, 1: 显示无效引用和单向链接, 2: 显示所有信息)')
-    parser.add_argument('--no-color', action='store_true',
+    parser.add_argument('-n', '--no-color', action='store_true',
                       help='禁用彩色输出')
-    parser.add_argument('--ignore', type=str, action='append',
+    parser.add_argument('-i', '--ignore', type=str, action='append',
                       help='添加要忽略的文件模式（可多次使用）')
+    parser.add_argument('-D', '--debug', action='store_true',
+                      help='显示调试信息')
+    parser.add_argument('-r', '--delete-unused-images', action='store_true',
+                      help='删除未被引用的图片文件')
     args = parser.parse_args()
 
     checker = ReferenceChecker(args.dir)
-    # 添加令行指定忽略模式
     if args.ignore:
         checker.ignore_patterns.extend(args.ignore)
     checker.check_all_references()
-    checker.print_report(args.verbosity, args.no_color)
+    if args.delete_unused_images:
+        checker.delete_unused_images()
+    checker.print_report(args.verbosity, args.no_color, args.debug)
 
 if __name__ == '__main__':
     main() 

@@ -1,5 +1,0 @@
-# Git ignore patterns
-ignored_dir/*
-*.tmp
-temp.*
-node_modules/ 
