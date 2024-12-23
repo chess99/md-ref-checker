@@ -29,7 +29,7 @@ pip install md-ref-checker
 
 ```bash
 # 克隆仓库
-git clone https://github.com/yourusername/md-ref-checker.git
+git clone https://github.com/chess99/md-ref-checker.git
 cd md-ref-checker
 
 # 创建并激活虚拟环境

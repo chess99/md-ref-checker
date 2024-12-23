@@ -4,14 +4,14 @@ build-backend = "hatchling.build"
 
 [project]
 name = "md-ref-checker"
-version = "0.2.2"
+version = "0.2.3"
 description = "A tool for checking references in Markdown files"
 readme = "README.md"
 requires-python = ">=3.8"
 license = "MIT"
 keywords = ["markdown", "reference", "checker", "obsidian"]
 authors = [
-    { name = "Your Name", email = "your.email@example.com" }
+    { name = "chess99", email = "chess99@126.com" }
 ]
 classifiers = [
     "Development Status :: 3 - Alpha",
@@ -25,6 +25,7 @@ classifiers = [
 ]
 dependencies = [
     "markdown-it-py>=3.0.0",
+    "click>=8.0.0",
 ]
 
 [project.optional-dependencies]
@@ -39,8 +40,8 @@ dev = [
 ]
 
 [project.urls]
-Homepage = "https://github.com/yourusername/md-ref-checker"
-Repository = "https://github.com/yourusername/md-ref-checker.git"
+Homepage = "https://github.com/chess99/md-ref-checker"
+Repository = "https://github.com/chess99/md-ref-checker.git"
 
 [project.scripts]
 md-ref-checker = "md_ref_checker.cli:main"
